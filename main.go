@@ -114,9 +114,10 @@ func main() {
 			Usage: "logging level to use options are [DEBUG|INFO|WARN|ERROR]",
 			Value: "INFO",
 		},
-		cli.BoolFlag{
+		cli.UintFlag{
 			Name:  "log-blur",
-			Usage: "round out access times in logging to improve privacy",
+			Usage: "round out access times to seconds provided in logging to improve privacy",
+			Value: 1,
 		},
 	}
 

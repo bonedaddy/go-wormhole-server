@@ -20,6 +20,14 @@ type RelayOptions struct {
 	//Port number for the server to listen on
 	Port uint `json:"port"`
 
+	//WelcomeMOTD set's the welcome message to be displayed on connecting
+	//clients
+	WelcomeMOTD string `json:"welcomeMOTD"`
+
+	//WelcomeError is displayed to clients, and if provided will have
+	//them disconnect immediately
+	WelcomeError string `json:"welcomeError"`
+
 	//DBFile path to the SQLite database file for the server to use
 	DBFile string `json:"dbFile"`
 
@@ -251,5 +259,5 @@ func applyCLIOptions(c *cli.Context, opts *Options) {
 
 	opts.Logging.Path = c.String("log")
 	opts.Logging.Level = c.String("log-level")
-	opts.Logging.BlurTimes = c.Bool("log-blur")
+	opts.Logging.BlurTimes = c.Uint("log-blur")
 }

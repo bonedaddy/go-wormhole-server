@@ -10,8 +10,8 @@ import (
 
 func prepLog(c *Client) *logrus.Entry {
 	var l = log.Get().WithField("usage", "relay")
-	if config.Opts.Logging.BlurTimes {
-		l = l.WithTime(time.Now().Truncate(time.Second))
+	if config.Opts.Logging.BlurTimes > 1 {
+		l = l.WithTime(time.Now().Truncate(time.Duration(config.Opts.Logging.BlurTimes) * time.Second))
 	}
 	if config.Opts.Logging.ShowAddress {
 		l = l.WithField("remote-addr", c.conn.RemoteAddr())
@@ -52,7 +52,7 @@ func LogInfo(c *Client, args ...interface{}) {
 //LogInfof is a convenience wrapper for logging
 //usage statistics given the relay server settings
 func LogInfof(c *Client, fmt string, args ...interface{}) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil || !config.Opts.Logging.Usage {
 		return
 	}
 
@@ -62,7 +62,7 @@ func LogInfof(c *Client, fmt string, args ...interface{}) {
 //LogWarn is a convenience wrapper for logging warnings
 //with usage statistics
 func LogWarn(c *Client, fmt string, args ...interface{}) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil {
 		return
 	}
 
@@ -72,7 +72,7 @@ func LogWarn(c *Client, fmt string, args ...interface{}) {
 //LogWarnf is a convenience wrapper for logging warnings
 //with usage statistics
 func LogWarnf(c *Client, fmt string, args ...interface{}) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil {
 		return
 	}
 
@@ -82,7 +82,7 @@ func LogWarnf(c *Client, fmt string, args ...interface{}) {
 //LogError is a convenience wrapper for logging errors
 //with usage statistics
 func LogError(c *Client, fmt string, args ...interface{}) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil {
 		return
 	}
 
@@ -92,7 +92,7 @@ func LogError(c *Client, fmt string, args ...interface{}) {
 //LogErrorf is a convenience wrapper for logging errors
 //with usage statistics
 func LogErrorf(c *Client, fmt string, args ...interface{}) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil {
 		return
 	}
 
@@ -102,7 +102,7 @@ func LogErrorf(c *Client, fmt string, args ...interface{}) {
 //LogErr is a convenience wrapper for logging errors
 //with usage statistics
 func LogErr(c *Client, msg string, err error) {
-	if config.Opts == nil || !config.Opts.Logging.BlurTimes {
+	if config.Opts == nil {
 		return
 	}
 

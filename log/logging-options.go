@@ -36,7 +36,7 @@ type Options struct {
 	//BlurTimes tells the logging facilities to
 	//round any access time logs to protect
 	//user privacy
-	BlurTimes bool `json:"blurTimes"`
+	BlurTimes uint `json:"blurTimes"`
 
 	//ShowAddress enables the logging of connection
 	//addresses during usage messages
@@ -49,7 +49,7 @@ var DefaultOptions = Options{
 	Path:        "",
 	Level:       "DEBUG",
 	Usage:       true,
-	BlurTimes:   true,
+	BlurTimes:   1,
 	ShowAddress: true,
 }
 
@@ -83,7 +83,6 @@ func (o Options) Verify() error {
 //for any validation errors.
 //
 //Path will only be overriden if the supplied object has one
-//BlurTimes will only be overriden if the current is false, and the supplied is true
 func (o *Options) MergeFrom(opt Options) error {
 	if len(opt.Path) != 0 {
 		o.Path = opt.Path
@@ -93,9 +92,7 @@ func (o *Options) MergeFrom(opt Options) error {
 		o.Level = opt.Level
 	}
 
-	if !o.BlurTimes && opt.BlurTimes {
-		o.BlurTimes = true
-	}
+	o.BlurTimes = opt.BlurTimes
 
 	return o.Verify()
 }
