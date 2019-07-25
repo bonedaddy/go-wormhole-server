@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/chris-pikul/go-wormhole-server/config"
+	"github.com/chris-pikul/go-wormhole-server/db"
 	"github.com/chris-pikul/go-wormhole-server/log"
 )
 
@@ -61,9 +62,11 @@ func Initialize() error {
 func Shutdown(ctx context.Context) error {
 	server.SetKeepAlivesEnabled(false)
 	err := server.Shutdown(ctx)
-
 	log.Info("shutdown relay server")
 
+	db.Close()
+
+	log.Info("completed shutdown")
 	return err
 }
 

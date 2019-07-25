@@ -207,6 +207,7 @@ func runServer(c *cli.Context) error {
 
 	err = relay.Initialize()
 	if err != nil {
+		log.Err("failed to start relay service", err)
 		return err
 	}
 	relay.Start()

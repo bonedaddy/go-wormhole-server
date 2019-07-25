@@ -2,6 +2,7 @@ package relay
 
 import (
 	"github.com/chris-pikul/go-wormhole-server/config"
+	"github.com/chris-pikul/go-wormhole-server/db"
 	"github.com/chris-pikul/go-wormhole/msg"
 )
 
@@ -35,6 +36,12 @@ func NewService() (*Service, error) {
 
 		//Pointers should bind this so we can change it later?
 		srv.Welcome.Version = &config.Opts.Relay.AdvertisedVersion
+	}
+
+	//Spin up the database
+	err := db.Initialize()
+	if err != nil {
+		return nil, err
 	}
 
 	return srv, nil
