@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/chris-pikul/go-wormhole/errs"
 	"github.com/chris-pikul/go-wormhole/msg"
-	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/gorilla/websocket"
 )
 
