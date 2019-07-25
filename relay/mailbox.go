@@ -2,7 +2,6 @@ package relay
 
 import (
 	"database/sql"
-	"errors"
 	"time"
 	"sync"
 
@@ -73,7 +72,7 @@ func (m Mailbox) Touch() error {
 //Open registers an open side on the mailbox
 func (m Mailbox) Open(side string) error {
 	if db.Get() == nil {
-		return ErrNotOpen
+		return db.ErrNotOpen
 	}
 
 	msides := mailboxSide{}

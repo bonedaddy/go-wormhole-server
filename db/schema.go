@@ -45,4 +45,12 @@ CREATE TABLE nameplates (
 CREATE INDEX idx_nameplates ON nameplates (app_id, name);
 CREATE INDEX idx_nameplates_mailbox ON nameplates (app_id, mailbox_id);
 CREATE INDEX idx_nameplates_request ON nameplates (app_id, request_id);
+
+CREATE TABLE nameplate_sides (
+	nameplate_id INTEGER REFERENCES nameplates(id),
+	claimed BOOLEAN,
+	side VARCHAR,
+	added INTEGER
+);
+CREATE INDEX idx_nameplate_side (nameplate_id, side);
 `
