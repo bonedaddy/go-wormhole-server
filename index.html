@@ -70,6 +70,7 @@
     .entry.ctrl { color: #E0DDD0; }
     .entry.ctrl.error { color: #E02010; }
     .entry.server { color: #80AAE0; }
+    .entry.echo { color: #208830; }
 
     .row {
         display: flex;
@@ -82,6 +83,12 @@
     }
     .row button:last-of-type {
         margin-right: 0;
+    }
+
+    #toolbox {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        margin-top: 1rem;
     }
 
     button {
@@ -112,6 +119,9 @@
             <button type='button' id='btn-close'>Close</button>
             <span id='status' class='CLOSED'>CLOSED</span>
         </div>
+        <div id='toolbox'>
+            <button type='button' id='btn-bind'>Bind</button>
+        </div>
     </div>
     <ul id='display'></ul>
 </div>
@@ -129,6 +139,9 @@ function print(msg, cls='') {
 function printControl(msg, cls='') {
     print(msg, 'ctrl '+cls);
 }
+function printEcho(msg) {
+    print(msg, 'echo');
+}
 
 function setStatus(status) {
     const el = document.getElementById('status');
@@ -140,6 +153,14 @@ function handleMessage(evt) {
     const msg = JSON.parse(evt.data);
     console.log(evt.data, msg);
     print(evt.data, 'server');
+}
+
+function sendMessage(obj) {
+    if(!ws) return;
+
+    const msg = JSON.stringify(obj);
+    ws.send(msg);
+    printEcho(msg);
 }
 
 function open() {
@@ -169,6 +190,14 @@ function close() {
     ws.close(1000);
 }
 
+function bind() {
+    sendMessage({
+        type: 'bind',
+        appid: 'test.app',
+        side: 'first',
+    });
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -181,6 +210,8 @@ function close() {
             case 'btn-close':
                 btn.onclick = close;
                 break;
+            case 'btn-bind':
+                btn.onclick = bind;
         }
     }
 })();

@@ -2,8 +2,8 @@ package relay
 
 import (
 	"database/sql"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/chris-pikul/go-wormhole-server/db"
 )
@@ -26,58 +26,58 @@ type MailboxListenerStop func()
 //are stored for retrieval later and transmitting
 //between users
 type Mailbox struct {
-	ID string
+	ID    string
 	AppID string
 
-	listeners map[int]MailboxListener
+	listeners     map[int]MailboxListener
 	stopListeners map[int]MailboxListenerStop
 
-	lock sync.Mutex
+	lock       sync.Mutex
 	listenerID int
 }
 
 //MailboxMessage is an individual entry
 //within a parent Mailbox
 type MailboxMessage struct {
-	ID string
-	AppID string
+	ID        string
+	AppID     string
 	MailboxID string
-	Side string
-	Phase string
-	Body string
-	ServerRX int64
+	Side      string
+	Phase     string
+	Body      string
+	ServerRX  int64
 }
 
 type mailboxRaw struct {
-	id string
-	appID string
-	updated int64
+	id           string
+	appID        string
+	updated      int64
 	forNameplate bool
 }
 
 type mailboxSide struct {
 	mailboxID string
-	opened bool
-	side string
-	added int64
-	mood string
+	opened    bool
+	side      string
+	added     int64
+	mood      string
 }
 
 //NewMailbox returns a new mailbox address
 //with the provided information
-func NewMailbox(id, appID string) Mailbox {
-	return Mailbox{
-		ID: id,
+func NewMailbox(id, appID string) *Mailbox {
+	return &Mailbox{
+		ID:    id,
 		AppID: appID,
 
-		listeners: make(map[int]MailboxListener),
+		listeners:     make(map[int]MailboxListener),
 		stopListeners: make(map[int]MailboxListenerStop),
-		listenerID: 1,
+		listenerID:    1,
 	}
 }
 
 //Touch updates the db timestamp for this mailbox
-func (m Mailbox) Touch() error {
+func (m *Mailbox) Touch() error {
 	if db.Get() == nil {
 		return db.ErrNotOpen
 	}
@@ -87,7 +87,7 @@ func (m Mailbox) Touch() error {
 }
 
 //Open registers an open side on the mailbox
-func (m Mailbox) Open(side string) error {
+func (m *Mailbox) Open(side string) error {
 	if db.Get() == nil {
 		return db.ErrNotOpen
 	}
@@ -108,7 +108,7 @@ func (m Mailbox) Open(side string) error {
 }
 
 //Close registers the mailbox as closed
-func (m Mailbox) Close(side string, mood string) error {
+func (m *Mailbox) Close(side string, mood string) error {
 	if db.Get() == nil {
 		return db.ErrNotOpen
 	}
@@ -157,7 +157,7 @@ func (m Mailbox) Close(side string, mood string) error {
 }
 
 //Delete removes the mailbox from the database
-func (m Mailbox) Delete() error {
+func (m *Mailbox) Delete() error {
 	if db.Get() == nil {
 		return db.ErrNotOpen
 	}
@@ -178,7 +178,7 @@ func (m Mailbox) Delete() error {
 }
 
 //GetMessages returns the messages currently present in this mailbox
-func (m Mailbox) GetMessages() ([]MailboxMessage, error) {
+func (m *Mailbox) GetMessages() ([]MailboxMessage, error) {
 	var msgs []MailboxMessage
 
 	if db.Get() == nil {
@@ -209,7 +209,7 @@ func (m Mailbox) GetMessages() ([]MailboxMessage, error) {
 }
 
 //AddMessage inserts a new message into the mailbox
-func (m Mailbox) AddMessage(msg MailboxMessage) error {
+func (m *Mailbox) AddMessage(msg MailboxMessage) error {
 	if db.Get() == nil {
 		return db.ErrNotOpen
 	}
@@ -266,14 +266,14 @@ func (m *Mailbox) RemoveAllListeners() {
 
 //HasListeners returns true if there are any listeners
 //registered
-func (m Mailbox) HasListeners() bool {
+func (m *Mailbox) HasListeners() bool {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	return len(m.listeners) > 0
 }
 
-func (m Mailbox) broadcast(msg MailboxMessage) {
+func (m *Mailbox) broadcast(msg MailboxMessage) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 

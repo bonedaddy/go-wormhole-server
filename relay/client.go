@@ -26,13 +26,13 @@ type Client struct {
 	conn       *websocket.Conn
 	sendBuffer chan msg.IMessage
 
-	App  string
+	App  *Application
 	Side string
 }
 
 //IsBound returns true if the client has already bound to the server
 func (c Client) IsBound() bool {
-	return c.App != "" && c.Side != ""
+	return c.App != nil && c.Side != ""
 }
 
 func (c *Client) watchReads() {
@@ -135,6 +135,8 @@ func (c *Client) OnMessage(src []byte) {
 		return
 	}
 
+	LogInfof(c, "received message %s", mt.String())
+
 	//TODO: Find the ID thing
 	c.sendBuffer <- msg.Ack{
 		Message: msg.NewServerMessage(msg.TypeAck),
@@ -147,12 +149,20 @@ func (c *Client) OnMessage(src []byte) {
 		return
 	}
 
+	var e error
 	switch mt {
 	case msg.TypePing:
 		m := im.(msg.Ping)
 		c.HandlePing(m)
+	case msg.TypeBind:
+		m := im.(msg.Bind)
+		e = c.HandleBind(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
+	}
+
+	if e != nil {
+		c.messageError(e, src)
 	}
 }
 
@@ -161,9 +171,17 @@ func (c *Client) OnMessage(src []byte) {
 //the client. These are generally only validation/protocol
 //errors and not actual networking errors
 func (c *Client) messageError(err error, orig []byte) {
+	LogErr(c, "error from client message", err)
+
 	if err == msg.ErrUnknown {
 		//Convert to the reply type
 		err = errs.ErrUnknownType
+	}
+
+	c.sendBuffer <- msg.Error{
+		Message: msg.NewServerMessage(msg.TypeError),
+		Error:   err.Error(),
+		Orig:    orig,
 	}
 }
 
@@ -182,13 +200,14 @@ func (c *Client) HandlePing(m msg.Ping) {
 func (c *Client) HandleBind(m msg.Bind) error {
 	if c.IsBound() {
 		return errs.ErrBound //Already bound
-	} else if c.App == "" {
+	} else if m.AppID == "" {
 		return errs.ErrBindAppID
-	} else if c.Side == "" {
+	} else if m.Side == "" {
 		return errs.ErrBindSide
 	}
 
-	//TODO: Left off here
+	c.App = service.GetApp(m.AppID)
+	c.Side = m.Side
 
 	return nil
 }

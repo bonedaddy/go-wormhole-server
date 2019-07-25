@@ -1,12 +1,12 @@
 package relay
 
 import (
-	"errors"
-	"encoding/base32"
+	crand "crypto/rand"
 	"database/sql"
+	"encoding/base32"
+	"errors"
 	"math"
 	"math/rand"
-	crand "crypto/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -24,30 +24,30 @@ import (
 type Application struct {
 	ID string
 
-	Mailboxes map[string]Mailbox
+	Mailboxes map[string]*Mailbox
 }
 
 type nameplate struct {
-	id int
-	appID string
-	name string
+	id        int
+	appID     string
+	name      string
 	mailboxID string
 	requestID string
 }
 
 type nameplateSide struct {
 	nameplateID int
-	claimed bool
-	side string
-	added int64
+	claimed     bool
+	side        string
+	added       int64
 }
 
 //NewApplication creates a new application container and
 //returns it as a pointer, or error if something failed.
 func NewApplication(id string) (Application, error) {
 	app := Application{
-		ID: id,
-		Mailboxes: make(map[string]Mailbox),
+		ID:        id,
+		Mailboxes: make(map[string]*Mailbox),
 	}
 
 	return app, nil
@@ -59,7 +59,7 @@ func (a *Application) Free() {
 	for _, mbox := range a.Mailboxes {
 		mbox.RemoveAllListeners()
 	}
-	a.Mailboxes = make(map[string]Mailbox)
+	a.Mailboxes = make(map[string]*Mailbox)
 }
 
 //GetNameplateIDs returns all the nameplate IDs used
@@ -127,7 +127,7 @@ func (a Application) FindNameplate() (string, error) {
 
 	//Too many collisions, try something gigantic
 	for i := 0; i < 1000; i++ {
-		id := strconv.Itoa( randRange(1000, 1000^1000) )
+		id := strconv.Itoa(randRange(1000, 1000^1000))
 
 		taken := false
 		for _, c := range claimed {
@@ -469,7 +469,7 @@ func (a Application) StillInUse() bool {
 }
 
 func randRange(l, h int) int {
-	return rand.Intn(h - l) + l
+	return rand.Intn(h-l) + l
 }
 
 func generateMailboxID() string {
