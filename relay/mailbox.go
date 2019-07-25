@@ -8,7 +8,17 @@ import (
 	"github.com/chris-pikul/go-wormhole-server/db"
 )
 
+//MailboxListener is a callback function that receives
+//new mailbox messages when they are added to the one
+//the listener has subscribed too.
 type MailboxListener func(MailboxMessage)
+
+//MailboxListenerStop is another callback function
+//like MailboxListener, which is used in conjunction.
+//When the service needs to remove a mailbox with
+//an attached listener, this callback is called
+//to alert the listener that they are going to loose
+//their hook.
 type MailboxListenerStop func()
 
 //Mailbox holds an association with an application
@@ -36,6 +46,13 @@ type MailboxMessage struct {
 	Phase string
 	Body string
 	ServerRX int64
+}
+
+type mailboxRaw struct {
+	id string
+	appID string
+	updated int64
+	forNameplate bool
 }
 
 type mailboxSide struct {
@@ -245,6 +262,15 @@ func (m *Mailbox) RemoveAllListeners() {
 
 	m.listeners = make(map[int]MailboxListener)
 	m.stopListeners = make(map[int]MailboxListenerStop)
+}
+
+//HasListeners returns true if there are any listeners
+//registered
+func (m Mailbox) HasListeners() bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	return len(m.listeners) > 0
 }
 
 func (m Mailbox) broadcast(msg MailboxMessage) {

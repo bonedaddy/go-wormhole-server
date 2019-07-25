@@ -53,6 +53,15 @@ func NewApplication(id string) (Application, error) {
 	return app, nil
 }
 
+//Free is called when the service is closing and the final
+//death-throws should be performed
+func (a *Application) Free() {
+	for _, mbox := range a.Mailboxes {
+		mbox.RemoveAllListeners()
+	}
+	a.Mailboxes = make(map[string]Mailbox)
+}
+
 //GetNameplateIDs returns all the nameplate IDs used
 //by the current application. This should only be allowed
 //if the config option AllowList is true.
@@ -339,6 +348,100 @@ func (a Application) FreeMailbox(id string) {
 	if ok {
 		delete(a.Mailboxes, id)
 	}
+}
+
+//Cleanup updates and removes mailboxes and nameplates as
+//needed via timeouts.
+func (a *Application) Cleanup(since int64) error {
+	if db.Get() == nil {
+		return db.ErrNotOpen
+	}
+	log.Infof("cleaning up application %s", a.ID)
+
+	//Touch boxes if someone is listening
+	//^ great comment, I know
+	for _, mbox := range a.Mailboxes {
+		if mbox.HasListeners() {
+			log.Infof("touching %s because of listeners", mbox.ID)
+			mbox.Touch()
+		}
+	}
+
+	//Prep to clean old mailboxes
+	oldMboxes := make([]string, 0)
+	{ //Scope for the defer
+		rows, err := db.Get().Query("SELECT * FROM mailboxes WHERE app_id=$1", a.ID)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			mbox := mailboxRaw{}
+			if err := rows.Scan(&mbox.id, &mbox.appID, &mbox.updated, &mbox.forNameplate); err != nil {
+				return err
+			}
+
+			if mbox.updated <= since {
+				oldMboxes = append(oldMboxes, mbox.id)
+			}
+		}
+	}
+
+	//Prep to clean old nameplates
+	oldNameplates := make([]int, 0)
+	{ //Scope for the defer
+		rows, err := db.Get().Query(`SELECT * FROM nameplates WHERE app_id=$1`, a.ID)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			np := nameplate{}
+			if err := rows.Scan(&np.id, &np.appID, &np.name, &np.mailboxID, &np.requestID); err != nil {
+				return err
+			}
+
+			found := false
+			for _, mid := range oldMboxes {
+				if mid == np.mailboxID {
+					found = true
+					break
+				}
+			}
+
+			if found {
+				oldNameplates = append(oldNameplates, np.id)
+			}
+		}
+	}
+
+	//Clear out old nameplates
+	for _, np := range oldNameplates {
+		if _, err := db.Get().Exec(`DELETE FROM nameplate_sides WHERE nameplate_id=$1`, np); err != nil {
+			return err
+		}
+
+		if _, err := db.Get().Exec(`DELETE FROM nameplates WHERE id=$1`, np); err != nil {
+			return err
+		}
+	}
+
+	//Clear out old mailboxes
+	for _, mbid := range oldMboxes {
+		if _, err := db.Get().Exec(`DELETE FROM messages WHERE mailbox_id=$1`, mbid); err != nil {
+			return err
+		}
+
+		if _, err := db.Get().Exec(`DELETE FROM mailbox_sides WHERE mailbox_id=$1`, mbid); err != nil {
+			return err
+		}
+
+		if _, err := db.Get().Exec(`DELETE FROM mailboxes WHERE id=$1`, mbid); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func randRange(l, h int) int {
