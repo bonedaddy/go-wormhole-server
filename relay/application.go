@@ -444,6 +444,30 @@ func (a *Application) Cleanup(since int64) error {
 	return nil
 }
 
+//StillInUse returns true if the application (by ID) is still
+//being used, or registered, in the database. If it is not,
+//then it's safe to delete it during cleaning
+func (a Application) StillInUse() bool {
+	if db.Get() == nil {
+		return false
+	}
+
+	var inUse bool
+	row := db.Get().QueryRow(`SELECT COUNT(*)>0 FROM mailboxes WHERE app_id=$1`, a.ID)
+	row.Scan(&inUse)
+	if inUse {
+		return true
+	}
+
+	row = db.Get().QueryRow(`SELECT COUNT(*)>0 FROM nameplates WHERE app_id=$1`, a.ID)
+	row.Scan(&inUse)
+	if inUse {
+		return true
+	}
+
+	return false
+}
+
 func randRange(l, h int) int {
 	return rand.Intn(h - l) + l
 }

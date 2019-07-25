@@ -65,3 +65,139 @@ func (s *Service) GetApp(id string) *Application {
 
 	return &app
 }
+
+//GetAllApps returns all the application IDs in memory, and in
+//the database.
+//I will admit, this function was A LOT shorter in the Python
+//version.
+func (s Service) GetAllApps() ([]string, error) {
+	if db.Get() == nil {
+		return []string{}, db.ErrNotOpen
+	}
+
+	apps := make([]string, 0)
+
+	{ //Scope for the defer
+		rows, err := db.Get().Query(`SELECT DISTINCT app_id FROM nameplates`)
+		if err != nil {
+			return apps, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return apps, err
+			}
+
+			found := false
+			for _, aID := range apps {
+				if aID == id {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				apps = append(apps, id)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return apps, err
+		}
+	}
+
+	{ //Scope for the defer
+		rows, err := db.Get().Query(`SELECT DISTINCT app_id FROM mailboxes`)
+		if err != nil {
+			return apps, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return apps, err
+			}
+
+			found := false
+			for _, aID := range apps {
+				if aID == id {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				apps = append(apps, id)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return apps, err
+		}
+	}
+
+	{ //Scope for the defer
+		rows, err := db.Get().Query(`SELECT DISTINCT app_id FROM messages`)
+		if err != nil {
+			return apps, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return apps, err
+			}
+
+			found := false
+			for _, aID := range apps {
+				if aID == id {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				apps = append(apps, id)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return apps, err
+		}
+	}
+
+	return apps, nil
+}
+
+//CleanApps iterates the apps registered to the service
+//and runs the cleaining process on each one
+func (s *Service) CleanApps(since int64) error {
+	log.Info("cleaning all applications")
+
+	apps, err := s.GetAllApps()
+	if err != nil {
+		return err
+	}
+
+	deadApps := make([]string, 0)
+	for _, appID := range apps {
+		app, ok := s.Apps[appID]
+		if ok {
+			err := app.Cleanup(since)
+			if err != nil {
+				return err
+			}
+
+			if !app.StillInUse() {
+				//OK to clear this one
+				deadApps = append(deadApps, appID)
+			}
+		}
+	}
+
+	//No longer in use, dump the memory
+	for _, appID := range deadApps {
+		delete(s.Apps, appID)
+	}
+
+	log.Info("completed cleaning")
+	return nil
+}
