@@ -1,0 +1,23 @@
+{
+    "mode": "RELAY",
+    "relay": {
+        "host": "",
+        "port": 4000,
+        "welcomeMOTD": "Go Wormhole Relay",
+        "dbFile": "wormhole-relay.db",
+        "allowList": true,
+        "advertisedVersion": "0.1.0",
+        "cleaningInterval": 5,
+        "channelExpiration": 11
+    },
+    "transit": {
+
+    },
+    "logging": {
+        "path": "",
+        "level": "DEBUG",
+        "usage": true,
+        "blurTimes": 1,
+        "showRemoteAddresses": true
+    }
+}
