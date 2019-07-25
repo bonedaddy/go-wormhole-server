@@ -8,12 +8,12 @@ import (
 
 	"github.com/chris-pikul/go-wormhole-server/config"
 	"github.com/chris-pikul/go-wormhole-server/log"
-	"github.com/chris-pikul/go-wormhole/msg"
 )
 
 var (
-	router *http.ServeMux
-	server *http.Server
+	router  *http.ServeMux
+	server  *http.Server
+	service *Service
 
 	clients     map[*Client]struct{}
 	lockClients sync.Mutex
@@ -28,7 +28,15 @@ func Initialize() error {
 		panic("attempted to initialize relay without a loaded config")
 	}
 
-	//Prepare the actual infrastructure
+	var err error
+
+	//Spin up the service, without it we should fail
+	service, err = NewService()
+	if err != nil {
+		return err //Pass it up to the CLI
+	}
+
+	//Prepare the connection infrastructure
 	clients = make(map[*Client]struct{})
 
 	register = make(chan *Client)
@@ -89,12 +97,7 @@ func runRelay() {
 			LogInfo(clnt, "new client registered")
 			lockClients.Unlock()
 
-			clnt.sendBuffer <- msg.Welcome{
-				Message: msg.NewMessage(msg.TypeWelcome),
-
-				//TODO: add message of the day and error stuff
-				Welcome: map[string]string{},
-			}
+			clnt.OnConnect()
 
 		case clnt := <-unregister: //Leaving client
 			lockClients.Lock()

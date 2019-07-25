@@ -30,6 +30,11 @@ type Client struct {
 	Side string
 }
 
+//IsBound returns true if the client has already bound to the server
+func (c Client) IsBound() bool {
+	return c.App != "" && c.Side != ""
+}
+
 func (c *Client) watchReads() {
 	defer func() {
 		unregister <- c
@@ -51,7 +56,7 @@ func (c *Client) watchReads() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil { // Read/Connection error
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				LogErr(c, "reading from socket connection", err)
 			}
 			break //Leave the loop, so unregister
@@ -107,6 +112,16 @@ func (c *Client) watchWrites() {
 	}
 }
 
+//OnConnect is called when the client has successfully been registered
+//to the server
+func (c *Client) OnConnect() {
+	c.sendBuffer <- msg.Welcome{
+		Message: msg.NewServerMessage(msg.TypeWelcome),
+
+		Info: service.Welcome,
+	}
+}
+
 //OnMessage called when a message from the client is received
 //and it needs to be handled/processed.
 //From this point we have a message as only the bytes and
@@ -124,6 +139,12 @@ func (c *Client) OnMessage(src []byte) {
 	c.sendBuffer <- msg.Ack{
 		Message: msg.NewServerMessage(msg.TypeAck),
 		ID:      0, //Not sure where this comes from yet
+	}
+
+	//Quit ahead if we haven't bound and aren't going to
+	if c.IsBound() == false && mt != msg.TypePing && mt != msg.TypeBind {
+		c.messageError(errs.ErrBindFirst, src)
+		return
 	}
 
 	switch mt {
@@ -159,7 +180,7 @@ func (c *Client) HandlePing(m msg.Ping) {
 
 //HandleBind handles bind messages.
 func (c *Client) HandleBind(m msg.Bind) error {
-	if c.App != "" || c.Side != "" {
+	if c.IsBound() {
 		return errs.ErrBound //Already bound
 	} else if c.App == "" {
 		return errs.ErrBindAppID
