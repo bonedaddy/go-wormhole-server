@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Go Wormhole Server</title>
+<style>
+    html, body {
+        background: #101015;
+        color: #FFF0E0;
+        font-family: monospace;
+        font-size: 12pt;
+        line-height: 1.25em;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    body, body * {
+        box-sizing: border-box;
+        font-size: 1em;
+    }
+
+    #root {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+        justify-content: space-between;
+        width: 100%;
+        height: 100%;
+    }
+    #controls, #display {
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        overflow: auto;
+    }
+    #controls {
+        width: 33%;
+        height: 100%;
+        border-right: 1px solid #AAA088;
+        background: #151520;
+    }
+    #ctrl-header {
+        border-bottom: 1px solid #AAA088;
+        padding-bottom: 1em;
+    }
+    #status {
+        font-size: 1.5em;
+        text-align: right;
+        margin-left: 2rem;
+    }
+    #status.OPEN { color: #20E010; }
+    #status.CLOSED { color: #E02010; }
+
+    #display {
+        flex: 1;
+        list-style: none;
+        align-items: stretch;
+        margin: 0;
+    }
+    #display li {
+        padding-bottom: 0.25rem;
+        margin-bottom: 0.25rem;
+        border-bottom: 1px solid #808085;
+    }
+    #display li:last-child {
+        border-bottom: none;
+    }
+    .entry.ctrl { color: #E0DDD0; }
+    .entry.ctrl.error { color: #E02010; }
+    .entry.server { color: #80AAE0; }
+
+    .row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .row button {
+        margin-right: 1rem;
+    }
+    .row button:last-of-type {
+        margin-right: 0;
+    }
+
+    button {
+        flex: 1;
+
+        display: block;
+        outline: #AAA088;
+        background: #FFF0E0;
+        color: #151520;
+        border: none;
+        border-radius: 0.15rem;
+        padding: 0.125em 1em;
+        text-align: center;
+    }
+    button:hover {
+        background: #E0DDD0;
+    }
+    button:active {
+        background: #AAA088;
+    }
+</style>
+</head>
+<body>
+<div id='root'>
+    <div id='controls'>
+        <div id='ctrl-header' class='row'>
+            <button type='button' id='btn-open'>Open</button>
+            <button type='button' id='btn-close'>Close</button>
+            <span id='status' class='CLOSED'>CLOSED</span>
+        </div>
+    </div>
+    <ul id='display'></ul>
+</div>
+<script type="application/javascript">
+
+const URI = '{{.}}';
+var ws = null;
+
+function print(msg, cls='') {
+    const ent = document.createElement('li');
+    ent.className = 'entry '+cls;
+    ent.innerText = msg;
+    document.getElementById('display').appendChild(ent);
+}
+function printControl(msg, cls='') {
+    print(msg, 'ctrl '+cls);
+}
+
+function setStatus(status) {
+    const el = document.getElementById('status');
+    el.className = status;
+    el.innerText = status;
+}
+
+function handleMessage(evt) {
+    const msg = JSON.parse(evt.data);
+    console.log(evt.data, msg);
+    print(evt.data, 'server');
+}
+
+function open() {
+    if(ws) return;
+
+    ws = new WebSocket(URI);
+    ws.onopen = () => {
+        printControl('Opened connection');
+        setStatus('OPEN');
+    };
+
+    ws.onclose = () => {
+        printControl('Connection closed');
+        setStatus('CLOSED');
+    }
+
+    ws.onerror = evt => {
+        printControl('ERROR: '+evt.data, 'error');
+    }
+
+    ws.onmessage = handleMessage;
+}
+
+function close() {
+    if(!ws) return;
+
+    ws.close(1000);
+}
+
+(() => { //Document ready
+    console.log('Ready');
+
+    const btns = document.getElementsByTagName('button');
+    for(const btn of btns) {
+        switch(btn.id) {
+            case 'btn-open':
+                btn.onclick = open;
+                break;
+            case 'btn-close':
+                btn.onclick = close;
+                break;
+        }
+    }
+})();
+</script>
+</body>
+</html>
