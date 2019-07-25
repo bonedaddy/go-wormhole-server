@@ -66,7 +66,7 @@ func Get() *sql.DB {
 //CreateSchema sets up a new database schema for use
 func CreateSchema() error {
 	if db == nil {
-		return errors.New("no database connection open")
+		return ErrNotOpen
 	}
 
 	log.Info("setting up database schema")
@@ -91,7 +91,7 @@ func CreateSchema() error {
 //match, will attempt to migrate the schema.
 func CheckMigration() error {
 	if db == nil {
-		return errors.New("no database connection open")
+		return ErrNotOpen
 	}
 
 	var cur int
@@ -113,3 +113,5 @@ func CheckMigration() error {
 
 	return nil
 }
+
+var ErrNotOpen = errors.New("database connection is not open")

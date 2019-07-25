@@ -3,6 +3,7 @@ package relay
 import (
 	"github.com/chris-pikul/go-wormhole-server/config"
 	"github.com/chris-pikul/go-wormhole-server/db"
+	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/chris-pikul/go-wormhole/msg"
 )
 
@@ -13,13 +14,17 @@ import (
 //the start of it)
 type Service struct {
 	Welcome msg.WelcomeInfo
+
+	Apps map[string]Application
 }
 
 //NewService initializes the relay service object
 //and returns it as a pointer, if we can not start
 //one then nil, error is returned instead
 func NewService() (*Service, error) {
-	srv := &Service{}
+	srv := &Service{
+		Apps: make(map[string]Application),
+	}
 
 	//Setup the welcome message stuff
 	if config.Opts.Relay.WelcomeMOTD != "" {
@@ -45,4 +50,18 @@ func NewService() (*Service, error) {
 	}
 
 	return srv, nil
+}
+
+//GetApp finds an application registered with the relay service.
+//If not found, it will create and initialize the object for it
+func (s *Service) GetApp(id string) *Application {
+	app, ok := s.Apps[id]
+	if !ok {
+		//Create new application and bind it
+		log.Infof("creating new application container for %s", id)
+		app, _ = NewApplication(id)
+		s.Apps[id] = app
+	}
+
+	return &app
 }
