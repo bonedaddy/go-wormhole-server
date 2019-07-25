@@ -221,6 +221,60 @@ func (a Application) AllocateNameplate(side string) (string, error) {
 	return nameplate, nil
 }
 
+//ReleaseNameplate removes the claim on a nameplates side.
+//If no other claims are on the nameplate, then the whole thing is cleared out
+func (a Application) ReleaseNameplate(name, side string) error {
+	if db.Get() == nil {
+		return db.ErrNotOpen
+	}
+
+	//Check that the nameplate exists
+	np := nameplate{}
+	row := db.Get().QueryRow(`SELECT * FROM nameplates WHERE app_id=$1 AND name=$2`, a.ID, name)
+	if err := row.Scan(&np.id, &np.appID, &np.name, &np.mailboxID, &np.requestID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil //Nothing to do, no nameplate found
+		}
+		return err
+	}
+
+	//Check that the side exists
+	nps := nameplateSide{}
+	row = db.Get().QueryRow(`SELECT * FROM nameplate_sides WHERE nameplate_id=$1 AND side=$2`, np.id, side)
+	if err := row.Scan(&nps.nameplateID, &nps.claimed, &nps.side, &nps.added); err != nil {
+		if err == sql.ErrNoRows {
+			return nil //Notihing to do, no claimed sides
+		}
+		return err
+	}
+
+	//Unclaim the side
+	_, err := db.Get().Exec(`UPDATE nameplate_sides SET claimed=false WHERE nameplate_id=$1 AND side=$2`, np.id, side)
+	if err != nil {
+		return err
+	}
+
+	//Check if any remaining claims
+	var rem int
+	row = db.Get().QueryRow(`SELECT COUNT(*) FROM nameplate_sides WHERE nameplate_id=$1 AND claimed=true`, np.id)
+	if err := row.Scan(&rem); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	if rem > 0 {
+		return nil //Still active claims
+	}
+
+	//Delete the nameplate and free it
+	_, err = db.Get().Exec(`DELETE FROM nameplate_sides WHERE nameplate_id=$1`, np.id)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Get().Exec(`DELETE FROM nameplates WHERE id=$1`, np.id)
+	return err
+}
+
 //AddMailbox creates a new mailbox in the application
 func (a Application) AddMailbox(id string, forNameplate bool, side string) error {
 	if db.Get() == nil {
@@ -276,6 +330,15 @@ func (a Application) OpenMailbox(id, side string) error {
 	}
 
 	return nil
+}
+
+//FreeMailbox removes a mailbox listing from the application memory.
+//Does not remove it from the database
+func (a Application) FreeMailbox(id string) {
+	_, ok := a.Mailboxes[id]
+	if ok {
+		delete(a.Mailboxes, id)
+	}
 }
 
 func randRange(l, h int) int {
