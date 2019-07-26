@@ -52,5 +52,5 @@ CREATE TABLE nameplate_sides (
 	side VARCHAR,
 	added INTEGER
 );
-CREATE INDEX idx_nameplate_side (nameplate_id, side);
+CREATE INDEX idx_nameplate_side ON nameplate_sides (nameplate_id, side);
 `

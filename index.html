@@ -42,6 +42,9 @@
         background: #151520;
     }
     #ctrl-header {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-gap: 1rem;
         border-bottom: 1px solid #AAA088;
         padding-bottom: 1em;
     }
@@ -68,9 +71,10 @@
         border-bottom: none;
     }
     .entry.ctrl { color: #E0DDD0; }
-    .entry.ctrl.error { color: #E02010; }
     .entry.server { color: #80AAE0; }
     .entry.echo { color: #208830; }
+
+    .entry.error { color: #E02010; }
 
     .row {
         display: flex;
@@ -88,6 +92,7 @@
     #toolbox {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
+        grid-gap: 1rem;
         margin-top: 1rem;
     }
 
@@ -112,19 +117,25 @@
 </style>
 </head>
 <body>
+
+
 <div id='root'>
     <div id='controls'>
-        <div id='ctrl-header' class='row'>
+        <div id='ctrl-header'>
             <button type='button' id='btn-open'>Open</button>
             <button type='button' id='btn-close'>Close</button>
             <span id='status' class='CLOSED'>CLOSED</span>
         </div>
         <div id='toolbox'>
             <button type='button' id='btn-bind'>Bind</button>
+            <button type='button' id='btn-list'>List</button>
+            <button type='button' id='btn-allocate'>Allocate</button>
         </div>
     </div>
     <ul id='display'></ul>
 </div>
+
+
 <script type="application/javascript">
 
 const URI = '{{.}}';
@@ -152,7 +163,8 @@ function setStatus(status) {
 function handleMessage(evt) {
     const msg = JSON.parse(evt.data);
     console.log(evt.data, msg);
-    print(evt.data, 'server');
+
+    print(evt.data, 'server'+(msg.type==='error'?' error':''));
 }
 
 function sendMessage(obj) {
@@ -188,6 +200,7 @@ function close() {
     if(!ws) return;
 
     ws.close(1000);
+    ws = null;
 }
 
 function bind() {
@@ -195,6 +208,18 @@ function bind() {
         type: 'bind',
         appid: 'test.app',
         side: 'first',
+    });
+}
+
+function list() {
+    sendMessage({
+        type: 'list',
+    });
+}
+
+function allocate() {
+    sendMessage({
+        type: 'allocate',
     });
 }
 
@@ -212,6 +237,13 @@ function bind() {
                 break;
             case 'btn-bind':
                 btn.onclick = bind;
+                break;
+            case 'btn-list':
+                btn.onclick = list;
+                break;
+            case 'btn-allocate':
+                btn.onclick = allocate;
+                break;
         }
     }
 })();

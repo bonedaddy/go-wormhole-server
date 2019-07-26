@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chris-pikul/go-wormhole/errs"
 	"github.com/chris-pikul/go-wormhole-server/db"
 	"github.com/chris-pikul/go-wormhole-server/log"
 )
@@ -69,22 +70,26 @@ func (a Application) GetNameplateIDs() ([]string, error) {
 	res := make([]string, 0)
 
 	if db.Get() == nil {
-		return res, errors.New("database connection is not open")
+		return res, db.ErrNotOpen
 	}
 
 	rows, err := db.Get().Query(`SELECT DISTINCT name FROM nameplates WHERE app_id=$1`, a.ID)
 	if err != nil {
+		log.Err("failed to get nameplate IDs from DB", err)
 		return res, err
 	}
+
 	defer rows.Close()
 	for rows.Next() {
 		var name string
 		if err = rows.Scan(&name); err != nil {
+			log.Err("scanning row for nameplate name", err)
 			return res, err
 		}
 		res = append(res, name)
 	}
 	if err = rows.Err(); err != nil {
+		log.Err("scanning rows for nameplates", err)
 		return res, err
 	}
 
@@ -96,6 +101,7 @@ func (a Application) GetNameplateIDs() ([]string, error) {
 func (a Application) FindNameplate() (string, error) {
 	claimed, err := a.GetNameplateIDs()
 	if err != nil {
+		log.Err("getting claimed nameplates for FindNameplate", err)
 		return "", err
 	}
 
@@ -142,6 +148,7 @@ func (a Application) FindNameplate() (string, error) {
 		}
 	}
 
+	log.Err("no available nameplates")
 	return "", errors.New("no available nameplate IDs")
 }
 
@@ -163,19 +170,25 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 			mbid = generateMailboxID()
 			err = a.AddMailbox(mbid, true, side)
 			if err != nil {
+				log.Err("could not add mailbox for ClaimNameplate", err)
 				return "", err
 			}
 
 			npres, e := db.Get().Exec(`INSERT INTO nameplates (app_id, name, mailbox_id) 
 				VALUES ($1, $2, $3)`, a.ID, name, mbid)
 			if e != nil {
+				log.Err("could not create nameplate for ClaimNameplate", err)
 				return "", e
 			}
 			npidl, e := npres.LastInsertId()
 			if e != nil {
+				log.Err("failed to get new nameplate id for ClaimNameplate", err)
 				return "", e
 			}
 			npid = int(npidl)
+		} else {
+			log.Err("failed to find existing nameplates for ClaimNameplate", err)
+			return "", err
 		}
 	} else {
 		npid = np.id
@@ -186,12 +199,14 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 	row = db.Get().QueryRow(`SELECT * FROM nameplate_sides WHERE nameplate_id=$1 AND side=$2`, npid, side)
 	if err := row.Scan(&nps.nameplateID, &nps.claimed, &nps.side, &nps.added); err != nil {
 		if err == sql.ErrNoRows {
-			_, err = db.Get().Exec(`INSERT INTO nameplate_sides (nameplates_id, claimed, side, added)
+			_, err = db.Get().Exec(`INSERT INTO nameplate_sides (nameplate_id, claimed, side, added)
 				VALUES ($1, true, $2, $3)`, npid, side, time.Now().Unix())
 			if err != nil {
+				log.Err("inserting new nameplate side for ClaimNameplate", err)
 				return "", err
 			}
 		} else {
+			log.Err("selecting existing nameplate sides for ClaimNameplate", err)
 			return "", err
 		}
 	}
@@ -202,13 +217,20 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 
 	err := a.OpenMailbox(mbid, side)
 	if err != nil {
+		log.Err("could not open mailbox for ClaimNameplate", err)
 		return "", err
 	}
 
 	var sidesOpen int
-	row = db.Get().QueryRow(`SELECT COUNT(*) FROM nameplate_sides WHERE nameplate_id=$1`)
+	row = db.Get().QueryRow(`SELECT COUNT(*) FROM nameplate_sides WHERE nameplate_id=$1`, npid)
 	if err := row.Scan(&sidesOpen); err != nil && err != sql.ErrNoRows {
-		return "", errors.New("nameplate crowded")
+		log.Err("counting open nameplate_sides for ClaimNameplate", err)
+		return "", err
+	}
+
+	if sidesOpen >= 2 {
+		log.Warnf("nameplate %d is crowded", npid)
+		return "", errs.ErrNameplateCrowded
 	}
 
 	return mbid, nil
@@ -219,11 +241,13 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 func (a Application) AllocateNameplate(side string) (string, error) {
 	nameplate, err := a.FindNameplate()
 	if err != nil {
+		log.Err("could not find nameplate for AllocateNameplate", err)
 		return "", err
 	}
 
 	_, err = a.ClaimNameplate(nameplate, side)
 	if err != nil {
+		log.Err("could not claim nameplate for AllocateNameplate", err)
 		return "", err
 	}
 
@@ -244,6 +268,7 @@ func (a Application) ReleaseNameplate(name, side string) error {
 		if err == sql.ErrNoRows {
 			return nil //Nothing to do, no nameplate found
 		}
+		log.Err("getting existing nameplates for ReleaseNameplate", err)
 		return err
 	}
 
@@ -254,12 +279,14 @@ func (a Application) ReleaseNameplate(name, side string) error {
 		if err == sql.ErrNoRows {
 			return nil //Notihing to do, no claimed sides
 		}
+		log.Err("getting nameplate sides for ReleaseNameplate", err)
 		return err
 	}
 
 	//Unclaim the side
 	_, err := db.Get().Exec(`UPDATE nameplate_sides SET claimed=false WHERE nameplate_id=$1 AND side=$2`, np.id, side)
 	if err != nil {
+		log.Err("updating nameplate sides for ReleaseNameplate", err)
 		return err
 	}
 
@@ -267,6 +294,7 @@ func (a Application) ReleaseNameplate(name, side string) error {
 	var rem int
 	row = db.Get().QueryRow(`SELECT COUNT(*) FROM nameplate_sides WHERE nameplate_id=$1 AND claimed=true`, np.id)
 	if err := row.Scan(&rem); err != nil && err != sql.ErrNoRows {
+		log.Err("counting nameplate sides for ReleaseNameplate", err)
 		return err
 	}
 
@@ -277,10 +305,14 @@ func (a Application) ReleaseNameplate(name, side string) error {
 	//Delete the nameplate and free it
 	_, err = db.Get().Exec(`DELETE FROM nameplate_sides WHERE nameplate_id=$1`, np.id)
 	if err != nil {
+		log.Err("deleting nameplate sides for ReleaseNameplate", err)
 		return err
 	}
 
 	_, err = db.Get().Exec(`DELETE FROM nameplates WHERE id=$1`, np.id)
+	if err != nil {
+		log.Err("deleting nameplate for ReleaseNameplate", err)
+	}
 	return err
 }
 
@@ -291,8 +323,9 @@ func (a Application) AddMailbox(id string, forNameplate bool, side string) error
 	}
 
 	var exists bool
-	row := db.Get().QueryRow(`SELECT * FROM mailboxes WHERE app_id=$1 AND id=$2`, a.ID, id)
+	row := db.Get().QueryRow(`SELECT COUNT(*)>0 FROM mailboxes WHERE app_id=$1 AND id=$2`, a.ID, id)
 	if err := row.Scan(&exists); err != nil && err != sql.ErrNoRows {
+		log.Err("getting mailboxes for AddMailbox", err)
 		return err
 	}
 
@@ -301,7 +334,10 @@ func (a Application) AddMailbox(id string, forNameplate bool, side string) error
 	}
 
 	_, err := db.Get().Exec(`INSERT INTO mailboxes (app_id, id, for_nameplate, updated)
-		VALUES ($1, $2, $3, $4`, a.ID, id, forNameplate, time.Now().Unix())
+		VALUES ($1, $2, $3, $4)`, a.ID, id, forNameplate, time.Now().Unix())
+	if err != nil {
+		log.Err("inserting new mailbox for AddMailbox", err)
+	}
 	return err
 }
 
@@ -314,6 +350,7 @@ func (a Application) OpenMailbox(id, side string) error {
 	//Ensure existance
 	err := a.AddMailbox(id, false, side)
 	if err != nil {
+		log.Err("adding mailbox for OpenMailbox", err)
 		return err
 	}
 
@@ -325,17 +362,19 @@ func (a Application) OpenMailbox(id, side string) error {
 
 	err = mbox.Open(side)
 	if err != nil {
+		log.Err("opening mailbox for OpenMailbox", err)
 		return err
 	}
 
 	var sidesOpen int
 	row := db.Get().QueryRow(`SELECT COUNT(*) FROM mailbox_sides WHERE mailbox_id=$1`, id)
 	if err := row.Scan(&sidesOpen); err != nil && err != sql.ErrNoRows {
+		log.Err("counting mailbox sides for OpenMailbox", err)
 		return err
 	}
 
 	if sidesOpen > 2 {
-		return errors.New("mailbox crowded")
+		return errs.ErrMailboxCrowded
 	}
 
 	return nil
@@ -372,18 +411,24 @@ func (a *Application) Cleanup(since int64) error {
 	{ //Scope for the defer
 		rows, err := db.Get().Query("SELECT * FROM mailboxes WHERE app_id=$1", a.ID)
 		if err != nil && err != sql.ErrNoRows {
+			log.Err("getting mailboxes for application Cleanup", err)
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			mbox := mailboxRaw{}
 			if err := rows.Scan(&mbox.id, &mbox.appID, &mbox.updated, &mbox.forNameplate); err != nil {
+				log.Err("scanning mailbox for application Cleanup", err)
 				return err
 			}
 
 			if mbox.updated <= since {
 				oldMboxes = append(oldMboxes, mbox.id)
 			}
+		}
+		if err := rows.Err(); err != nil {
+			log.Err("scanning mailbox rows for application Cleanup", err)
+			return err
 		}
 	}
 
@@ -392,12 +437,14 @@ func (a *Application) Cleanup(since int64) error {
 	{ //Scope for the defer
 		rows, err := db.Get().Query(`SELECT * FROM nameplates WHERE app_id=$1`, a.ID)
 		if err != nil && err != sql.ErrNoRows {
+			log.Err("selecting nameplates for application Cleanup", err)
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			np := nameplate{}
 			if err := rows.Scan(&np.id, &np.appID, &np.name, &np.mailboxID, &np.requestID); err != nil {
+				log.Err("scanning nameplate for application Cleanup", err)
 				return err
 			}
 
@@ -413,15 +460,21 @@ func (a *Application) Cleanup(since int64) error {
 				oldNameplates = append(oldNameplates, np.id)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			log.Err("scanning nameplate rows for application Cleanup", err)
+			return err
+		}
 	}
 
 	//Clear out old nameplates
 	for _, np := range oldNameplates {
 		if _, err := db.Get().Exec(`DELETE FROM nameplate_sides WHERE nameplate_id=$1`, np); err != nil {
+			log.Err("deleting nameplate sides for application Cleanup", err)
 			return err
 		}
 
 		if _, err := db.Get().Exec(`DELETE FROM nameplates WHERE id=$1`, np); err != nil {
+			log.Err("deleting nameplates for application Cleanup", err)
 			return err
 		}
 	}
@@ -429,14 +482,17 @@ func (a *Application) Cleanup(since int64) error {
 	//Clear out old mailboxes
 	for _, mbid := range oldMboxes {
 		if _, err := db.Get().Exec(`DELETE FROM messages WHERE mailbox_id=$1`, mbid); err != nil {
+			log.Err("deleting messages for application Cleanup", err)
 			return err
 		}
 
 		if _, err := db.Get().Exec(`DELETE FROM mailbox_sides WHERE mailbox_id=$1`, mbid); err != nil {
+			log.Err("deleting mailbox sides for application Cleanup", err)
 			return err
 		}
 
 		if _, err := db.Get().Exec(`DELETE FROM mailboxes WHERE id=$1`, mbid); err != nil {
+			log.Err("deleting mailbox for application Cleanup", err)
 			return err
 		}
 	}

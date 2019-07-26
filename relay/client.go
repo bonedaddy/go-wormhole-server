@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chris-pikul/go-wormhole-server/config"
 	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/chris-pikul/go-wormhole/errs"
 	"github.com/chris-pikul/go-wormhole/msg"
@@ -26,8 +27,9 @@ type Client struct {
 	conn       *websocket.Conn
 	sendBuffer chan msg.IMessage
 
-	App  *Application
-	Side string
+	App       *Application
+	Side      string
+	Allocated bool
 }
 
 //IsBound returns true if the client has already bound to the server
@@ -147,6 +149,10 @@ func (c *Client) OnMessage(src []byte) {
 	if c.IsBound() == false && mt != msg.TypePing && mt != msg.TypeBind {
 		c.messageError(errs.ErrBindFirst, src)
 		return
+	} else if c.IsBound() && (c.App == nil || c.Side == "") {
+		//Something went wrong in the memory
+		LogError(c, "client does not have a bound App, but should")
+		c.messageError(errs.ErrInternal, src)
 	}
 
 	var e error
@@ -157,6 +163,12 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeBind:
 		m := im.(msg.Bind)
 		e = c.HandleBind(m)
+	case msg.TypeList:
+		m := im.(msg.List)
+		e = c.HandleList(m)
+	case msg.TypeAllocate:
+		m := im.(msg.Allocate)
+		e = c.HandleAllocate(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -190,8 +202,7 @@ func (c *Client) messageError(err error, orig []byte) {
 func (c *Client) HandlePing(m msg.Ping) {
 	c.sendBuffer <- msg.Pong{
 		Message: msg.NewServerMessage(msg.TypePong),
-
-		Pong: m.Ping,
+		Pong:    m.Ping,
 	}
 	LogDebugf(c, "received ping %d", m.Ping)
 }
@@ -209,5 +220,73 @@ func (c *Client) HandleBind(m msg.Bind) error {
 	c.App = service.GetApp(m.AppID)
 	c.Side = m.Side
 
+	LogInfof(c, "bound client to app %s and side %s", m.AppID, m.Side)
+	return nil
+}
+
+//HandleList handles list commands from the client
+//who would like to know the available nameplates.
+//This is optional for whether the server will allow
+//it via the AllowList relay server configuration option.
+//If this option is not available, an empty list is returned
+//back to the client
+func (c *Client) HandleList(m msg.List) error {
+	//Safe to assume we are bound
+
+	if config.Opts.Relay.AllowList == false {
+		//Not allowed, reply empty
+		c.sendBuffer <- msg.Nameplates{
+			Message:    msg.NewServerMessage(msg.TypeNameplates),
+			Nameplates: []msg.NameplateEntry{},
+		}
+		return nil
+	}
+
+	//Get the nameplates since we allow it
+	ids, err := c.App.GetNameplateIDs()
+	if err != nil {
+		LogErr(c, "failed to get nameplate IDs for List command", err)
+		return errs.ErrInternal
+	}
+
+	resp := msg.Nameplates{
+		Message:    msg.NewServerMessage(msg.TypeNameplates),
+		Nameplates: make([]msg.NameplateEntry, 0),
+	}
+	for _, id := range ids {
+		resp.Nameplates = append(resp.Nameplates, msg.NameplateEntry{ID: id})
+	}
+
+	c.sendBuffer <- resp
+
+	return nil
+}
+
+//HandleAllocate command is received from client when
+//they want to allocate, or reserve, a nameplate slot
+//for message transfer.
+//Clients can only allocate 1 during a connection.
+//Allocate generates a new nameplate and returns it
+func (c *Client) HandleAllocate(m msg.Allocate) error {
+	if c.Allocated {
+		//Already allocated, reply with error
+		return errs.ErrAlreadyAllocated
+	}
+
+	id, err := c.App.AllocateNameplate(c.Side)
+	if err != nil {
+		LogErr(c, "failed to allocate nameplate for allocate command", err)
+		if err == errs.ErrNameplateCrowded {
+			return err
+		}
+		return errs.ErrInternal
+	}
+
+	c.Allocated = true
+
+	c.sendBuffer <- msg.Allocated{
+		Message:   msg.NewServerMessage(msg.TypeAllocated),
+		Nameplate: id,
+	}
 	return nil
 }
