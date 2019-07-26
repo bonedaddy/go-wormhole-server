@@ -29,7 +29,10 @@ type Client struct {
 
 	App       *Application
 	Side      string
+	Nameplate string
+
 	Allocated bool
+	Claimed bool
 }
 
 //IsBound returns true if the client has already bound to the server
@@ -169,6 +172,9 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeAllocate:
 		m := im.(msg.Allocate)
 		e = c.HandleAllocate(m)
+	case msg.TypeClaim:
+		m := im.(msg.Claim)
+		e = c.HandleClaim(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -190,6 +196,12 @@ func (c *Client) messageError(err error, orig []byte) {
 		err = errs.ErrUnknownType
 	}
 
+	//Mask the error if it isn't a client one
+	if _, ok := err.(errs.ClientError); !ok {
+		LogErr(c, "internal error found during messageError before going to client", err)
+		err = errs.ErrInternal
+	}
+	
 	c.sendBuffer <- msg.Error{
 		Message: msg.NewServerMessage(msg.TypeError),
 		Error:   err.Error(),
@@ -276,10 +288,7 @@ func (c *Client) HandleAllocate(m msg.Allocate) error {
 	id, err := c.App.AllocateNameplate(c.Side)
 	if err != nil {
 		LogErr(c, "failed to allocate nameplate for allocate command", err)
-		if err == errs.ErrNameplateCrowded {
-			return err
-		}
-		return errs.ErrInternal
+		return err
 	}
 
 	c.Allocated = true
@@ -288,5 +297,35 @@ func (c *Client) HandleAllocate(m msg.Allocate) error {
 		Message:   msg.NewServerMessage(msg.TypeAllocated),
 		Nameplate: id,
 	}
+	return nil
+}
+
+//HandleClaim command from client when they want
+//to claim a specific nameplate instead of
+//auto-generating one for them.
+//Clients can only allocate 1 during a connection.
+func (c *Client) HandleClaim(m msg.Claim) error {
+	if c.Claimed {
+		return errs.ErrAlreadyClaimed
+	}
+
+	if m.Nameplate == "" {
+		return errs.ErrClaimNameplate
+	}
+
+	mboxID, err := c.App.ClaimNameplate(m.Nameplate, m.Nameplate)
+	if err != nil {
+		LogErr(c, "failed to claim nameplate for claim command", err)
+		return err
+	}
+
+	c.Claimed = true
+	c.Nameplate = m.Nameplate
+
+	c.sendBuffer <- msg.Claimed{
+		Message: msg.NewServerMessage(msg.TypeClaimed),
+		Mailbox: mboxID,
+	}
+
 	return nil
 }

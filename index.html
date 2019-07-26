@@ -76,24 +76,15 @@
 
     .entry.error { color: #E02010; }
 
-    .row {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .row button {
-        margin-right: 1rem;
-    }
-    .row button:last-of-type {
-        margin-right: 0;
-    }
-
     #toolbox {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
         grid-gap: 1rem;
         margin-top: 1rem;
+    }
+
+    .col-2 {
+        grid-column: 1 / span 2;
     }
 
     button {
@@ -114,6 +105,27 @@
     button:active {
         background: #AAA088;
     }
+
+    input {
+        flex: 1;
+
+        display: block;
+        width: auto;
+        min-width: 2rem;
+        outline: #AAA088;
+        background: #151520;
+        color: #AAA088;
+        border: 1px solid #AAA088;
+        border-radius: 0.15rem;
+        padding: 0.125em 0.25rem;
+    }
+    input:hover, input:active {
+        border-color: #FFF0E0;
+    }
+    input:focus {
+        border-color: #FFF0E0;
+        color: #FFF0E0;
+    }
 </style>
 </head>
 <body>
@@ -130,6 +142,11 @@
             <button type='button' id='btn-bind'>Bind</button>
             <button type='button' id='btn-list'>List</button>
             <button type='button' id='btn-allocate'>Allocate</button>
+
+            <input type='text' id='inp-nameplate' placeholder='Nameplate ID' />
+            <button type='button' id='btn-claim'>Claim</button>
+
+            <input type='text' id='inp-mailbox' placeholder='Mailbox' />
         </div>
     </div>
     <ul id='display'></ul>
@@ -140,6 +157,10 @@
 
 const URI = '{{.}}';
 var ws = null;
+var inpNP = null, inpMB;
+
+var nameplateID = '';
+var mailboxID = '';
 
 function print(msg, cls='') {
     const ent = document.createElement('li');
@@ -165,6 +186,18 @@ function handleMessage(evt) {
     console.log(evt.data, msg);
 
     print(evt.data, 'server'+(msg.type==='error'?' error':''));
+
+    switch(msg.type) {
+        case 'allocated':
+            nameplateID = msg.nameplate;
+            inpNP.value = nameplateID;
+            inpNP.setAttribute('readonly', true);
+            break;
+        case 'claimed':
+            mailboxID = msg.mailbox;
+            inpMB.value = mailboxID;
+            inpMB.setAttribute('readonly', true);
+    }
 }
 
 function sendMessage(obj) {
@@ -223,6 +256,13 @@ function allocate() {
     });
 }
 
+function claim() {
+    sendMessage({
+        type: 'claim',
+        nameplate: nameplateID,
+    });
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -244,8 +284,21 @@ function allocate() {
             case 'btn-allocate':
                 btn.onclick = allocate;
                 break;
+            case 'btn-claim':
+                btn.onclick = claim;
+                break;
         }
     }
+
+    inpNP = document.getElementById('inp-nameplate');
+    const npChange = evt => {
+        const val = inpNP.value;
+        nameplateID = val;
+    };
+    inpNP.onkeyup = npChange;
+    inpNP.onchange = npChange;
+
+    inpMB = document.getElementById('inp-mailbox');
 })();
 </script>
 </body>

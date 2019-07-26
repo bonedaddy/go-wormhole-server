@@ -36,18 +36,18 @@ CREATE TABLE messages (
 CREATE INDEX idx_messages ON messages (app_id, mailbox_id);
 
 CREATE TABLE nameplates (
-	id SERIAL PRIMARY KEY,
+	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 	app_id VARCHAR,
 	name VARCHAR,
 	mailbox_id VARCHAR REFERENCES mailboxes(id),
-	request_id VARCHAR
+	request_id VARCHAR DEFAULT ''
 );
 CREATE INDEX idx_nameplates ON nameplates (app_id, name);
 CREATE INDEX idx_nameplates_mailbox ON nameplates (app_id, mailbox_id);
 CREATE INDEX idx_nameplates_request ON nameplates (app_id, request_id);
 
 CREATE TABLE nameplate_sides (
-	nameplate_id INTEGER REFERENCES nameplates(id),
+	nameplate_id INTEGER REFERENCES nameplates(id) NOT NULL,
 	claimed BOOLEAN,
 	side VARCHAR,
 	added INTEGER

@@ -212,7 +212,7 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 	}
 
 	if nps.claimed {
-		return "", nil //Cannot reclaim from the same side
+		return "", errs.ErrReclaimNameplate //Cannot reclaim from the same side
 	}
 
 	err := a.OpenMailbox(mbid, side)
@@ -228,8 +228,8 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 		return "", err
 	}
 
-	if sidesOpen >= 2 {
-		log.Warnf("nameplate %d is crowded", npid)
+	if sidesOpen > 2 {
+		log.Warnf("nameplate %s is crowded", npid)
 		return "", errs.ErrNameplateCrowded
 	}
 
