@@ -145,6 +145,7 @@
 
             <input type='text' id='inp-nameplate' placeholder='Nameplate ID' />
             <button type='button' id='btn-claim'>Claim</button>
+            <button type='button' id='btn-release'>Release</button>
 
             <input type='text' id='inp-mailbox' placeholder='Mailbox' />
         </div>
@@ -263,6 +264,13 @@ function claim() {
     });
 }
 
+function release() {
+    sendMessage({
+        type: 'release',
+        nameplate: nameplateID,
+    })
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -286,6 +294,9 @@ function claim() {
                 break;
             case 'btn-claim':
                 btn.onclick = claim;
+                break;
+            case 'btn-release':
+                btn.onclick = release;
                 break;
         }
     }

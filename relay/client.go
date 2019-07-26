@@ -33,6 +33,7 @@ type Client struct {
 
 	Allocated bool
 	Claimed bool
+	Released bool
 }
 
 //IsBound returns true if the client has already bound to the server
@@ -175,6 +176,9 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeClaim:
 		m := im.(msg.Claim)
 		e = c.HandleClaim(m)
+	case msg.TypeRelease:
+		m := im.(msg.Release)
+		e = c.HandleRelease(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -325,6 +329,39 @@ func (c *Client) HandleClaim(m msg.Claim) error {
 	c.sendBuffer <- msg.Claimed{
 		Message: msg.NewServerMessage(msg.TypeClaimed),
 		Mailbox: mboxID,
+	}
+
+	return nil
+}
+
+//HandleRelease command from client when they want
+//to release their hold, or side, of a nameplate.
+//They can provide the nameplate as a means of double checking
+//but the current client one is inferred.
+//If they do supply it, it must match.
+//This command must come after claim.
+func (c *Client) HandleRelease(m msg.Release) error {
+	if c.Released {
+		return errs.ErrAlreadyReleased
+	}
+
+	//Check if they supplied it and it is different
+	if m.Nameplate != "" && m.Nameplate != c.Nameplate {
+		return errs.ErrReleaseNameplate
+	} else if m.Nameplate == "" && c.Nameplate == "" {
+		return errs.ErrReleaseNotClaimed
+	}
+
+	err := c.App.ReleaseNameplate(c.Nameplate, c.Side)
+	if err != nil {
+		LogErr(c, "failed to release nameplate for release command", err)
+		return err
+	}
+
+	c.Released = true
+
+	c.sendBuffer <- msg.Released{
+		Message: msg.NewServerMessage(msg.TypeReleased),
 	}
 
 	return nil
