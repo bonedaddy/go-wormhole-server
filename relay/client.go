@@ -36,6 +36,7 @@ type Client struct {
 	Claimed bool
 	Released bool
 	Listening bool
+	Closed bool
 
 	listenerHandle int
 }
@@ -216,6 +217,9 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeAdd:
 		m := im.(msg.Add)
 		e = c.HandleAdd(m)
+	case msg.TypeClose:
+		m := im.(msg.Close)
+		e = c.HandleClose(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -461,6 +465,53 @@ func (c *Client) HandleAdd(m msg.Add) error {
 	if err != nil {
 		LogErr(c, "failed to add message for add command", err)
 		return err
+	}
+
+	return nil
+}
+
+//HandleClose command from the client to close it's connection
+//to an opened mailbox. The "mailbox" field is optional,
+//but if supplied must match the currently open one.
+func (c *Client) HandleClose(m msg.Close) error {
+	if c.Closed {
+		return errs.ErrAlreadyClosed
+	}
+
+	if m.Mailbox != "" {
+		if c.Mailbox != nil && c.Mailbox.ID != m.Mailbox {
+			return errs.ErrCloseMailbox
+		}
+	} else if c.Mailbox == nil {
+		return errs.ErrCloseOpenFirst
+	}
+
+	if c.Mailbox == nil {
+		mbox, err := c.App.OpenMailbox(m.Mailbox, c.Side)
+		if err != nil {
+			LogErr(c, "failed to open mailbox for command close", err)
+			return err
+		}
+
+		c.Mailbox = mbox
+	}
+
+	err := c.Mailbox.Close(c.Side, m.Mood)
+	if err != nil {
+		LogErr(c, "failed to close mailbox for command close", err)
+		return err
+	}
+
+	if c.Listening {
+		c.Mailbox.RemoveListener(c.listenerHandle)
+		c.Listening = false
+	}
+
+	c.Mailbox = nil
+	c.Closed = true
+
+	c.sendBuffer <- msg.Closed{
+		Message: msg.NewServerMessage(msg.TypeClosed),
 	}
 
 	return nil

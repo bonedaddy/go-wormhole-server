@@ -150,7 +150,7 @@
             <input type='text' id='inp-mailbox' placeholder='Mailbox' />
             <button type='button' id='btn-mbox-open'>Open Mailbox</button>
             <button type='button' id='btn-mbox-add'>Add Message</button>
-            
+            <button type='button' id='btn-mbox-close'>Close Mailbox</button>
         </div>
     </div>
     <ul id='display'></ul>
@@ -201,6 +201,17 @@ function handleMessage(evt) {
             mailboxID = msg.mailbox;
             inpMB.value = mailboxID;
             inpMB.setAttribute('readonly', true);
+            break;
+        case 'released':
+            nameplateID = '';
+            inpNP.value = '';
+            inpNP.setAttribute('readonly', false);
+            break;
+        case 'closed':
+            mailboxID = '';
+            inpMB.value = '';
+            inpMB.setAttribute('readonly', false);
+            break;
     }
 }
 
@@ -290,6 +301,13 @@ function addMessage() {
     })
 }
 
+function closeMailbox() {
+    sendMessage({
+        type: 'close',
+        mailbox: mailboxID,
+    });
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -322,6 +340,9 @@ function addMessage() {
                 break;
             case 'btn-mbox-add':
                 btn.onclick = addMessage;
+                break;
+            case 'btn-mbox-close':
+                btn.onclick = closeMailbox;
                 break;
         }
     }
