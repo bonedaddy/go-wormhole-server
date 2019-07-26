@@ -30,10 +30,14 @@ type Client struct {
 	App       *Application
 	Side      string
 	Nameplate string
+	Mailbox string
 
 	Allocated bool
 	Claimed bool
 	Released bool
+	Listening bool
+
+	listenerHandle int
 }
 
 //IsBound returns true if the client has already bound to the server
@@ -118,6 +122,29 @@ func (c *Client) watchWrites() {
 	}
 }
 
+func (c *Client) mailboxMessage(mmsg MailboxMessage) {
+	if c.conn == nil {
+		return
+	}
+
+	LogDebugf(c, "received mailbox event for message %s", mmsg.ID)
+
+	c.sendBuffer <- msg.MailboxMessage{
+		Message: msg.NewServerMessage(msg.TypeMessage),
+		Side: mmsg.Side,
+		Phase: mmsg.Phase,
+		Body: mmsg.Body,
+		MsgID: mmsg.ID,
+	}
+} 
+
+func (c *Client) stopMailboxMessages() {
+	LogDebugf(c, "received mailbox event to stop listening on %s", c.Mailbox)
+
+	c.Listening = false
+	c.listenerHandle = 0
+}
+
 //OnConnect is called when the client has successfully been registered
 //to the server
 func (c *Client) OnConnect() {
@@ -179,6 +206,9 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeRelease:
 		m := im.(msg.Release)
 		e = c.HandleRelease(m)
+	case msg.TypeOpen:
+		m := im.(msg.Open)
+		e = c.HandleOpen(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -363,6 +393,32 @@ func (c *Client) HandleRelease(m msg.Release) error {
 	c.sendBuffer <- msg.Released{
 		Message: msg.NewServerMessage(msg.TypeReleased),
 	}
+
+	return nil
+}
+
+//HandleOpen command from the client to open the specified
+//mailbox (by ID) for reading. Will also bind the listeners
+//for event callbacks.
+func (c *Client) HandleOpen(m msg.Open) error {
+	if c.Mailbox != "" {
+		return errs.ErrAlreadyOpened
+	}
+
+	if m.Mailbox == "" {
+		return errs.ErrOpenMailbox
+	}
+
+	mbox, err := c.App.OpenMailbox(m.Mailbox, c.Side)
+	if err != nil {
+		LogErr(c, "failed to open mailbox for open command", err)
+		return err
+	}
+
+	c.Mailbox = mbox.ID
+
+	//Bind the event callbacks!
+	c.listenerHandle = mbox.AddListener(c.mailboxMessage, c.stopMailboxMessages)
 
 	return nil
 }

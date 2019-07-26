@@ -148,6 +148,7 @@
             <button type='button' id='btn-release'>Release</button>
 
             <input type='text' id='inp-mailbox' placeholder='Mailbox' />
+            <button type='button' id='btn-mbox-open'>Open Mailbox</button>
         </div>
     </div>
     <ul id='display'></ul>
@@ -271,6 +272,13 @@ function release() {
     })
 }
 
+function openMailbox() {
+    sendMessage({
+        type: 'open',
+        mailbox: mailboxID,
+    });
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -298,6 +306,8 @@ function release() {
             case 'btn-release':
                 btn.onclick = release;
                 break;
+            case 'btn-mbox-open':
+                btn.onclick = openMailbox;
         }
     }
 

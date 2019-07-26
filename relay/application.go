@@ -215,7 +215,7 @@ func (a Application) ClaimNameplate(name, side string) (string, error) {
 		return "", errs.ErrReclaimNameplate //Cannot reclaim from the same side
 	}
 
-	err := a.OpenMailbox(mbid, side)
+	_, err := a.OpenMailbox(mbid, side)
 	if err != nil {
 		log.Err("could not open mailbox for ClaimNameplate", err)
 		return "", err
@@ -342,16 +342,16 @@ func (a Application) AddMailbox(id string, forNameplate bool, side string) error
 }
 
 //OpenMailbox marks the mailbox as opened
-func (a Application) OpenMailbox(id, side string) error {
+func (a Application) OpenMailbox(id, side string) (*Mailbox, error) {
 	if db.Get() == nil {
-		return db.ErrNotOpen
+		return nil, db.ErrNotOpen
 	}
 
 	//Ensure existance
 	err := a.AddMailbox(id, false, side)
 	if err != nil {
 		log.Err("adding mailbox for OpenMailbox", err)
-		return err
+		return nil, err
 	}
 
 	mbox, has := a.Mailboxes[id]
@@ -363,21 +363,21 @@ func (a Application) OpenMailbox(id, side string) error {
 	err = mbox.Open(side)
 	if err != nil {
 		log.Err("opening mailbox for OpenMailbox", err)
-		return err
+		return nil, err
 	}
 
 	var sidesOpen int
 	row := db.Get().QueryRow(`SELECT COUNT(*) FROM mailbox_sides WHERE mailbox_id=$1`, id)
 	if err := row.Scan(&sidesOpen); err != nil && err != sql.ErrNoRows {
 		log.Err("counting mailbox sides for OpenMailbox", err)
-		return err
+		return nil, err
 	}
 
 	if sidesOpen > 2 {
-		return errs.ErrMailboxCrowded
+		return nil, errs.ErrMailboxCrowded
 	}
 
-	return nil
+	return mbox, nil
 }
 
 //FreeMailbox removes a mailbox listing from the application memory.
