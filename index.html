@@ -36,7 +36,7 @@
         overflow: auto;
     }
     #controls {
-        width: 33%;
+        width: 40%;
         height: 100%;
         border-right: 1px solid #AAA088;
         background: #151520;
@@ -149,6 +149,8 @@
 
             <input type='text' id='inp-mailbox' placeholder='Mailbox' />
             <button type='button' id='btn-mbox-open'>Open Mailbox</button>
+            <button type='button' id='btn-mbox-add'>Add Message</button>
+            
         </div>
     </div>
     <ul id='display'></ul>
@@ -279,6 +281,15 @@ function openMailbox() {
     });
 }
 
+function addMessage() {
+    sendMessage({
+        type: 'add',
+        id: ""+(Math.round(Math.random() * 10^10)),
+        phase: ""+(Math.round(Math.random() * 100^10)),
+        body: ""+(Math.round(Math.random() * 1000^10)),
+    })
+}
+
 (() => { //Document ready
     console.log('Ready');
 
@@ -308,6 +319,10 @@ function openMailbox() {
                 break;
             case 'btn-mbox-open':
                 btn.onclick = openMailbox;
+                break;
+            case 'btn-mbox-add':
+                btn.onclick = addMessage;
+                break;
         }
     }
 

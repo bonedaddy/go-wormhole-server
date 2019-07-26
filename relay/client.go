@@ -30,7 +30,7 @@ type Client struct {
 	App       *Application
 	Side      string
 	Nameplate string
-	Mailbox string
+	Mailbox 	*Mailbox
 
 	Allocated bool
 	Claimed bool
@@ -139,7 +139,11 @@ func (c *Client) mailboxMessage(mmsg MailboxMessage) {
 } 
 
 func (c *Client) stopMailboxMessages() {
-	LogDebugf(c, "received mailbox event to stop listening on %s", c.Mailbox)
+	if c.Mailbox == nil {
+		return
+	}
+
+	LogDebugf(c, "received mailbox event to stop listening on %s", c.Mailbox.ID)
 
 	c.Listening = false
 	c.listenerHandle = 0
@@ -209,6 +213,9 @@ func (c *Client) OnMessage(src []byte) {
 	case msg.TypeOpen:
 		m := im.(msg.Open)
 		e = c.HandleOpen(m)
+	case msg.TypeAdd:
+		m := im.(msg.Add)
+		e = c.HandleAdd(m)
 	default:
 		c.messageError(fmt.Errorf("unsuported command '%s'", mt.String()), src)
 	}
@@ -401,7 +408,7 @@ func (c *Client) HandleRelease(m msg.Release) error {
 //mailbox (by ID) for reading. Will also bind the listeners
 //for event callbacks.
 func (c *Client) HandleOpen(m msg.Open) error {
-	if c.Mailbox != "" {
+	if c.Mailbox != nil {
 		return errs.ErrAlreadyOpened
 	}
 
@@ -414,11 +421,47 @@ func (c *Client) HandleOpen(m msg.Open) error {
 		LogErr(c, "failed to open mailbox for open command", err)
 		return err
 	}
-
-	c.Mailbox = mbox.ID
+	c.Mailbox = mbox
 
 	//Bind the event callbacks!
 	c.listenerHandle = mbox.AddListener(c.mailboxMessage, c.stopMailboxMessages)
+
+	return nil
+}
+
+//HandleAdd command from the client to add a message to the
+//opened mailbox of this client. Adding messages will also trigger
+//broadcasts for any listners currently on the service for
+//the specified mailbox. Which of course means, it echos back
+//immediately
+func (c *Client) HandleAdd(m msg.Add) error {
+	if c.Mailbox == nil {
+		return errs.ErrOpenFirst
+	}
+
+	if m.Phase == "" {
+		return errs.ErrAddPhase
+	} else if m.Body == "" {
+		return errs.ErrAddBody
+	}
+
+	mmsg := MailboxMessage{
+		ID: m.ID,
+		AppID: c.App.ID,
+		MailboxID: c.Mailbox.ID,
+		Side: c.Side,
+
+		Phase: m.Phase,
+		Body: m.Body,
+
+		ServerRX: time.Now().Unix(),
+	}
+
+	err := c.Mailbox.AddMessage(mmsg)
+	if err != nil {
+		LogErr(c, "failed to add message for add command", err)
+		return err
+	}
 
 	return nil
 }
