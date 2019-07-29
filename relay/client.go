@@ -108,8 +108,15 @@ func (c *Client) watchWrites() {
 	for {
 		select {
 		case msgObj, ok := <-c.sendBuffer: //Read messages to send
+			if c.conn == nil {
+				return //connection died somewhere
+			}
+
 			//Give them 10 seconds to take the new message
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				return //setting deadline failed too
+			}
 
 			if !ok {
 				//Channel was closed
@@ -193,10 +200,9 @@ func (c *Client) OnMessage(src []byte) {
 
 	LogInfof(c, "received message %s", mt.String())
 
-	//TODO: Find the ID thing
 	c.sendBuffer <- msg.Ack{
 		Message: msg.NewServerMessage(msg.TypeAck),
-		ID:      0, //Not sure where this comes from yet
+		ID:      im.GetID(), //Not sure where this comes from yet
 	}
 
 	//Quit ahead if we haven't bound and aren't going to
