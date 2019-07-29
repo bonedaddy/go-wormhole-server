@@ -135,7 +135,7 @@ func main() {
 			Name:   "serve",
 			Usage:  "serve both relay, and transit requests (default command)",
 			Action: runServer,
-			Flags: app.Flags,
+			Flags:  app.Flags,
 		},
 
 		cli.Command{
@@ -174,7 +174,7 @@ func main() {
 					Name:  "config, c",
 					Usage: "configuration JSON `FILE` to use instead of options (empty = no config)",
 				},
-		
+
 				cli.StringFlag{
 					Name:  "relay-host",
 					Usage: "`HOST` address or IP for the listening interface",
@@ -185,7 +185,7 @@ func main() {
 					Usage: "`PORT` number to listen on",
 					Value: config.DefaultOptions.Relay.Port,
 				},
-		
+
 				cli.StringFlag{
 					Name:  "db, d",
 					Usage: "path to SQLite database `FILE`",
@@ -200,7 +200,7 @@ func main() {
 					Usage: "which `VERSION` to recommend to clients",
 					Value: config.DefaultOptions.Relay.AdvertisedVersion,
 				},
-		
+
 				cli.UintFlag{
 					Name:  "cleaning, C",
 					Usage: "time interval inbetween cleaning channels in `MINUTES`",
@@ -211,7 +211,7 @@ func main() {
 					Usage: "channel expiration time in `MINUTES` (should be larger then cleaning period)",
 					Value: config.DefaultOptions.Relay.ChannelExpiration,
 				},
-		
+
 				cli.StringFlag{
 					Name:  "log, l",
 					Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
@@ -249,7 +249,7 @@ func main() {
 					Usage: "`PORT` number to listen on",
 					Value: 4001,
 				},
-		
+
 				cli.StringFlag{
 					Name:  "log, l",
 					Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
@@ -305,6 +305,7 @@ func shutdown() {
 	defer cancel()
 
 	relay.Shutdown(ctx)
+	transit.Shutdown(ctx)
 }
 
 //holds the main thread until either an interrupt from OS, or the chanQuit receives a message
@@ -349,7 +350,7 @@ func runClean(c *cli.Context) error {
 		log.Err("failed to clean database", err)
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -399,6 +400,5 @@ func beginTransit() error {
 		log.Err("failed to start transit service", err)
 		return err
 	}
-	transit.Start()
-	return nil
+	return transit.Start()
 }

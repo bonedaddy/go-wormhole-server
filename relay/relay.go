@@ -61,9 +61,13 @@ func Initialize() error {
 //Shutdown performs the graceful shutdown of the relay server
 //using the provided context
 func Shutdown(ctx context.Context) error {
-	server.SetKeepAlivesEnabled(false)
-	err := server.Shutdown(ctx)
-	log.Info("shutdown relay server")
+	var err error
+
+	if server != nil {
+		server.SetKeepAlivesEnabled(false)
+		err = server.Shutdown(ctx)
+		log.Info("shutdown relay server")
+	}
 
 	db.Close()
 
