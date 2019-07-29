@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 func testOptions(opt Options, t *testing.T) {
@@ -55,14 +54,14 @@ func TestOptionsMerge(t *testing.T) {
 
 	opts := Options{}
 	opts.Mode = "RELAY"
-	opts.Relay.CleaningInterval = time.Minute * 2
-	opts.Relay.ChannelExpiration = time.Minute * 5
+	opts.Relay.CleaningInterval = 2
+	opts.Relay.ChannelExpiration = 5
 
 	if err := tgt.MergeFrom(opts); err != nil {
 		t.Error(err)
 	}
 
-	opts.Relay.CleaningInterval = time.Minute * 10
+	opts.Relay.CleaningInterval = 10
 	if err := tgt.MergeFrom(opts); err == nil {
 		t.Error("failed to find bad time intervals")
 	}

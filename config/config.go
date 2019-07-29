@@ -3,8 +3,8 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
-	"time"
 
 	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/urfave/cli"
@@ -43,13 +43,13 @@ type RelayOptions struct {
 
 	//CleaningInterval holds the time interval in which cleaning
 	//operations should be ran
-	CleaningInterval time.Duration `json:"cleaningInterval"`
+	CleaningInterval uint `json:"cleaningInterval"`
 
 	//ChannelExpiration holds the time duration in which a channel
 	//can exist without interaction before it is marked as dirty
 	//and removed by cleaning. It is recommended this be larger
 	//than the CleaningInterval field
-	ChannelExpiration time.Duration `json:"channelExpiration"`
+	ChannelExpiration uint `json:"channelExpiration"` //TODO: This value is never used
 }
 
 //TransitOptions holds the settings specific to the transit
@@ -108,8 +108,8 @@ var DefaultOptions = Options{
 		Port:              4000,
 		DBFile:            "./wormhole-relay.db",
 		AllowList:         true,
-		CleaningInterval:  time.Minute * 5,
-		ChannelExpiration: time.Minute * 11,
+		CleaningInterval:  5,
+		ChannelExpiration: 11,
 	},
 
 	Transit: TransitOptions{
@@ -175,7 +175,7 @@ func (o *Options) MergeFrom(opt Options) error {
 //Returns the results, and the first error encountered.
 //The error is either validation error, or JSON encoding error.
 func ReadOptionsFromFile(filename string) (Options, error) {
-	res := Options{}
+	res := DefaultOptions
 
 	file, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -203,6 +203,7 @@ func NewOptions(defaults *Options, filename string, ctx *cli.Context) (Options, 
 	}
 
 	if len(filename) > 0 {
+		fmt.Printf("reading configuration from '%s'\n", filename)
 		file, err := ReadOptionsFromFile(filename)
 		if err != nil {
 			return res, err
@@ -214,6 +215,7 @@ func NewOptions(defaults *Options, filename string, ctx *cli.Context) (Options, 
 	}
 
 	if ctx != nil {
+		fmt.Printf("applying CLI options to configuration\n")
 		applyCLIOptions(ctx, &res)
 	}
 
@@ -249,15 +251,19 @@ func applyCLIOptions(c *cli.Context, opts *Options) {
 
 	if c.Uint("cleaning") > 0 {
 		ci := c.Uint("cleaning")
-		opts.Relay.CleaningInterval = time.Minute * time.Duration(ci)
+		opts.Relay.CleaningInterval = ci
 	}
 
 	if c.Uint("channel-exp") > 0 {
 		ce := c.Uint("channel-exp")
-		opts.Relay.ChannelExpiration = time.Minute * time.Duration(ce)
+		opts.Relay.ChannelExpiration = ce
 	}
 
 	opts.Logging.Path = c.String("log")
-	opts.Logging.Level = c.String("log-level")
+
+	if str := c.String("log-level"); str != "" {
+		opts.Logging.Level = str
+	}
+	
 	opts.Logging.BlurTimes = c.Uint("log-blur")
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/chris-pikul/go-wormhole-server/config"
 	"github.com/chris-pikul/go-wormhole-server/log"
 	"github.com/chris-pikul/go-wormhole-server/relay"
+	"github.com/chris-pikul/go-wormhole-server/transit"
 
 	"github.com/urfave/cli"
 )
@@ -21,7 +22,7 @@ const (
 	Version = "0.1.0"
 )
 
-const usageText = `wormhole-server [command] [global options...]
+const usageText = `wormhole-server [global options...] [command]
 
    Default command is "serve".
    If the config option is provided, then all the other options are
@@ -62,33 +63,34 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "config, c",
-			Usage: "configuration JSON file to use instead of options (empty = no config)",
+			Usage: "configuration JSON `FILE` to use instead of options (empty = no config)",
 		},
 
 		cli.StringFlag{
 			Name:  "relay-host",
-			Usage: "host address or IP for the listening interface",
+			Usage: "`HOST` address or IP for the listening interface",
+			Value: config.DefaultOptions.Relay.Host,
 		},
 		cli.UintFlag{
 			Name:  "relay-port",
-			Usage: "port number to listen on",
-			Value: 4000,
+			Usage: "`PORT` number to listen on",
+			Value: config.DefaultOptions.Relay.Port,
 		},
 
 		cli.StringFlag{
 			Name:  "transit-host",
-			Usage: "host address or IP for the listening interface",
+			Usage: "`HOST` address or IP for the listening interface",
 		},
 		cli.UintFlag{
 			Name:  "transit-port",
-			Usage: "port number to listen on",
+			Usage: "`PORT` number to listen on",
 			Value: 4001,
 		},
 
 		cli.StringFlag{
 			Name:  "db, d",
-			Usage: "path to SQLite database file",
-			Value: "wormhole-relay.db",
+			Usage: "path to SQLite database `FILE`",
+			Value: config.DefaultOptions.Relay.DBFile,
 		},
 		cli.BoolFlag{
 			Name:  "no-list",
@@ -96,33 +98,35 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "advert-version",
-			Usage: "version to recommend to clients",
+			Usage: "which `VERSION` to recommend to clients",
+			Value: config.DefaultOptions.Relay.AdvertisedVersion,
 		},
 
 		cli.UintFlag{
 			Name:  "cleaning, C",
-			Usage: "time interval inbetween cleaning channels in minutes",
-			Value: 5,
+			Usage: "time interval inbetween cleaning channels in `MINUTES`",
+			Value: config.DefaultOptions.Relay.CleaningInterval,
 		},
 		cli.UintFlag{
 			Name:  "channel-exp, e",
-			Usage: "channel expiration time in minutes (should be larger then cleaning period)",
-			Value: 11,
+			Usage: "channel expiration time in `MINUTES` (should be larger then cleaning period)",
+			Value: config.DefaultOptions.Relay.ChannelExpiration,
 		},
 
 		cli.StringFlag{
 			Name:  "log, l",
-			Usage: "file to write usage/error logs to (empty does not write logs)",
+			Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
+			Value: config.DefaultOptions.Logging.Path,
 		},
 		cli.StringFlag{
 			Name:  "log-level, L",
-			Usage: "logging level to use options are [DEBUG|INFO|WARN|ERROR]",
-			Value: "INFO",
+			Usage: "logging `LEVEL` to use options are [DEBUG|INFO|WARN|ERROR]",
+			Value: config.DefaultOptions.Logging.Level,
 		},
 		cli.UintFlag{
 			Name:  "log-blur",
-			Usage: "round out access times to seconds provided in logging to improve privacy",
-			Value: 1,
+			Usage: "round out access times to `SECONDS` provided in logging to improve privacy",
+			Value: config.DefaultOptions.Logging.BlurTimes,
 		},
 	}
 
@@ -131,24 +135,137 @@ func main() {
 			Name:   "serve",
 			Usage:  "serve both relay, and transit requests (default command)",
 			Action: runServer,
+			Flags: app.Flags,
 		},
 
 		cli.Command{
 			Name:   "clean",
 			Usage:  "clears the SQLite database file",
 			Action: runClean,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config, c",
+					Usage: "configuration JSON `FILE` to use instead of options (empty = no config)",
+				},
+				cli.StringFlag{
+					Name:  "db, d",
+					Usage: "path to SQLite database `FILE`",
+					Value: config.DefaultOptions.Relay.DBFile,
+				},
+				cli.StringFlag{
+					Name:  "log, l",
+					Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
+					Value: config.DefaultOptions.Logging.Path,
+				},
+				cli.StringFlag{
+					Name:  "log-level, L",
+					Usage: "logging `LEVEL` to use options are [DEBUG|INFO|WARN|ERROR]",
+					Value: config.DefaultOptions.Logging.Level,
+				},
+			},
 		},
 
 		cli.Command{
 			Name:   "relay",
 			Usage:  "run as relay server (rendezvous) only",
 			Action: runRelay,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config, c",
+					Usage: "configuration JSON `FILE` to use instead of options (empty = no config)",
+				},
+		
+				cli.StringFlag{
+					Name:  "relay-host",
+					Usage: "`HOST` address or IP for the listening interface",
+					Value: config.DefaultOptions.Relay.Host,
+				},
+				cli.UintFlag{
+					Name:  "relay-port",
+					Usage: "`PORT` number to listen on",
+					Value: config.DefaultOptions.Relay.Port,
+				},
+		
+				cli.StringFlag{
+					Name:  "db, d",
+					Usage: "path to SQLite database `FILE`",
+					Value: config.DefaultOptions.Relay.DBFile,
+				},
+				cli.BoolFlag{
+					Name:  "no-list",
+					Usage: "disable the 'list' request",
+				},
+				cli.StringFlag{
+					Name:  "advert-version",
+					Usage: "which `VERSION` to recommend to clients",
+					Value: config.DefaultOptions.Relay.AdvertisedVersion,
+				},
+		
+				cli.UintFlag{
+					Name:  "cleaning, C",
+					Usage: "time interval inbetween cleaning channels in `MINUTES`",
+					Value: config.DefaultOptions.Relay.CleaningInterval,
+				},
+				cli.UintFlag{
+					Name:  "channel-exp, e",
+					Usage: "channel expiration time in `MINUTES` (should be larger then cleaning period)",
+					Value: config.DefaultOptions.Relay.ChannelExpiration,
+				},
+		
+				cli.StringFlag{
+					Name:  "log, l",
+					Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
+					Value: config.DefaultOptions.Logging.Path,
+				},
+				cli.StringFlag{
+					Name:  "log-level, L",
+					Usage: "logging `LEVEL` to use options are [DEBUG|INFO|WARN|ERROR]",
+					Value: config.DefaultOptions.Logging.Level,
+				},
+				cli.UintFlag{
+					Name:  "log-blur",
+					Usage: "round out access times to `SECONDS` provided in logging to improve privacy",
+					Value: config.DefaultOptions.Logging.BlurTimes,
+				},
+			},
 		},
 
 		cli.Command{
 			Name:   "transit",
 			Usage:  "run as transit server (piping) only",
 			Action: runTransit,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config, c",
+					Usage: "configuration JSON `FILE` to use instead of options (empty = no config)",
+				},
+
+				cli.StringFlag{
+					Name:  "transit-host",
+					Usage: "`HOST` address or IP for the listening interface",
+				},
+				cli.UintFlag{
+					Name:  "transit-port",
+					Usage: "`PORT` number to listen on",
+					Value: 4001,
+				},
+		
+				cli.StringFlag{
+					Name:  "log, l",
+					Usage: "`FILE` to write usage/error logs to (empty does not write logs)",
+					Value: config.DefaultOptions.Logging.Path,
+				},
+				cli.StringFlag{
+					Name:  "log-level, L",
+					Usage: "logging `LEVEL` to use options are [DEBUG|INFO|WARN|ERROR]",
+					Value: config.DefaultOptions.Logging.Level,
+				},
+				cli.UintFlag{
+					Name:  "log-blur",
+					Usage: "round out access times to `SECONDS` provided in logging to improve privacy",
+					Value: config.DefaultOptions.Logging.BlurTimes,
+				},
+			},
 		},
 	}
 
@@ -205,17 +322,17 @@ func blockUntilSignalOrTermination() {
 }
 
 func runServer(c *cli.Context) error {
-	err := initialize(c)
-	if err != nil {
+	if err := initialize(c); err != nil {
 		return err
 	}
 
-	err = relay.Initialize()
-	if err != nil {
-		log.Err("failed to start relay service", err)
+	if err := beginRelay(); err != nil {
 		return err
 	}
-	relay.Start()
+
+	if err := beginTransit(); err != nil {
+		return err
+	}
 
 	blockUntilSignalOrTermination()
 	shutdown()
@@ -224,16 +341,64 @@ func runServer(c *cli.Context) error {
 }
 
 func runClean(c *cli.Context) error {
-	fmt.Println("cleaning database")
+	if err := initialize(c); err != nil {
+		return err
+	}
+
+	if err := relay.CleanNowPure(); err != nil {
+		log.Err("failed to clean database", err)
+		return err
+	}
+	
 	return nil
 }
 
 func runRelay(c *cli.Context) error {
-	fmt.Println("running wormhole relay (only) server")
+	if err := initialize(c); err != nil {
+		return err
+	}
+
+	if err := beginRelay(); err != nil {
+		return err
+	}
+
+	blockUntilSignalOrTermination()
+	shutdown()
+
 	return nil
 }
 
 func runTransit(c *cli.Context) error {
-	fmt.Println("running wormhole transit (only) server")
+	if err := initialize(c); err != nil {
+		return err
+	}
+
+	if err := beginTransit(); err != nil {
+		return err
+	}
+
+	blockUntilSignalOrTermination()
+	shutdown()
+
+	return nil
+}
+
+func beginRelay() error {
+	err := relay.Initialize()
+	if err != nil {
+		log.Err("failed to start relay service", err)
+		return err
+	}
+	relay.Start()
+	return nil
+}
+
+func beginTransit() error {
+	err := transit.Initialize()
+	if err != nil {
+		log.Err("failed to start transit service", err)
+		return err
+	}
+	transit.Start()
 	return nil
 }

@@ -7,6 +7,8 @@ CREATE TABLE version (
 	version INTEGER NOT NULL
 );
 
+-- Relay data
+
 CREATE TABLE mailboxes (
 	id VARCHAR PRIMARY KEY,
 	app_id VARCHAR,

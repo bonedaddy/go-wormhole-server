@@ -30,15 +30,32 @@ type Client struct {
 	App       *Application
 	Side      string
 	Nameplate string
-	Mailbox 	*Mailbox
+	Mailbox   *Mailbox
 
 	Allocated bool
-	Claimed bool
-	Released bool
+	Claimed   bool
+	Released  bool
 	Listening bool
-	Closed bool
+	Closed    bool
 
 	listenerHandle int
+}
+
+//Close terminates the client connection and cleans up resources it had
+//bound.
+func (c *Client) Close() {
+	if c.Mailbox != nil {
+		if c.Listening || c.listenerHandle > 0 {
+			c.Mailbox.RemoveListener(c.listenerHandle)
+		}
+	}
+
+	close(c.sendBuffer)
+
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
 }
 
 //IsBound returns true if the client has already bound to the server
@@ -49,7 +66,6 @@ func (c Client) IsBound() bool {
 func (c *Client) watchReads() {
 	defer func() {
 		unregister <- c
-		c.conn.Close() //Close the actual connection here
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
@@ -84,7 +100,9 @@ func (c *Client) watchWrites() {
 	ticker := time.NewTicker(pingInterval)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close() //Double check the connection is closed
+		if c.conn != nil {
+			c.conn.Close() //Double check the connection is closed
+		}
 	}()
 
 	for {
@@ -132,12 +150,12 @@ func (c *Client) mailboxMessage(mmsg MailboxMessage) {
 
 	c.sendBuffer <- msg.MailboxMessage{
 		Message: msg.NewServerMessage(msg.TypeMessage),
-		Side: mmsg.Side,
-		Phase: mmsg.Phase,
-		Body: mmsg.Body,
-		MsgID: mmsg.ID,
+		Side:    mmsg.Side,
+		Phase:   mmsg.Phase,
+		Body:    mmsg.Body,
+		MsgID:   mmsg.ID,
 	}
-} 
+}
 
 func (c *Client) stopMailboxMessages() {
 	if c.Mailbox == nil {
@@ -246,7 +264,7 @@ func (c *Client) messageError(err error, orig []byte) {
 		LogErr(c, "internal error found during messageError before going to client", err)
 		err = errs.ErrInternal
 	}
-	
+
 	c.sendBuffer <- msg.Error{
 		Message: msg.NewServerMessage(msg.TypeError),
 		Error:   err.Error(),
@@ -450,13 +468,13 @@ func (c *Client) HandleAdd(m msg.Add) error {
 	}
 
 	mmsg := MailboxMessage{
-		ID: m.ID,
-		AppID: c.App.ID,
+		ID:        m.ID,
+		AppID:     c.App.ID,
 		MailboxID: c.Mailbox.ID,
-		Side: c.Side,
+		Side:      c.Side,
 
 		Phase: m.Phase,
-		Body: m.Body,
+		Body:  m.Body,
 
 		ServerRX: time.Now().Unix(),
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/chris-pikul/go-wormhole-server/config"
 	"github.com/chris-pikul/go-wormhole-server/db"
@@ -88,6 +89,34 @@ func Start() {
 		}
 		log.Info("relay server closed")
 	}()
+
+	//Allow the cleaning process to run
+	go runCleaning()
+}
+
+//CleanNowPure runs the cleaning operation without actually spinning up the
+//service resources
+func CleanNowPure() error {
+	if config.Opts == nil {
+		panic("attempted to initialize relay without a loaded config")
+	}
+	var err error
+
+	//Spin up the service, without it we should fail
+	service, err = NewService()
+	if err != nil {
+		return err //Pass it up to the CLI
+	}
+
+	err = service.CleanApps(time.Now().Unix())
+	if err != nil {
+		return err
+	}
+
+	//Shutdown manually
+	db.Close()
+
+	return nil
 }
 
 func runRelay() {
@@ -105,11 +134,37 @@ func runRelay() {
 		case clnt := <-unregister: //Leaving client
 			lockClients.Lock()
 			if _, ok := clients[clnt]; ok {
+				clnt.Close()
 				delete(clients, clnt)
-				close(clnt.sendBuffer)
 			}
 			LogInfo(clnt, "client unregistered")
 			lockClients.Unlock()
 		}
+	}
+}
+
+func runCleaning() {
+	if config.Opts == nil {
+		return //No options available
+	}
+
+	if config.Opts.Relay.CleaningInterval == 0 {
+		log.Warn("cleaning interval was too small! Check configuration")
+		return
+	}
+
+	dur := time.Minute * time.Duration(config.Opts.Relay.CleaningInterval)
+
+	ticker := time.NewTicker(dur)
+	lastCleaning := time.Now().Add(-dur) //simulate the time to be before now so we don't over clean the first time
+	for t := range ticker.C {
+		if service != nil {
+			err := service.CleanApps(lastCleaning.Unix())
+			if err != nil {
+				log.Err("failed to clean relay server", err)
+			}
+		}
+
+		lastCleaning = t
 	}
 }

@@ -54,7 +54,9 @@ func Initialize() error {
 //Close terminates and clears the database connection
 func Close() {
 	log.Info("closing database connection")
-	db.Close()
+	if db != nil {
+		db.Close()
+	}
 	db = nil
 }
 

@@ -7,7 +7,7 @@
         "dbFile": "wormhole-relay.db",
         "allowList": true,
         "advertisedVersion": "0.1.0",
-        "cleaningInterval": 5,
+        "cleaningInterval": 1,
         "channelExpiration": 11
     },
     "transit": {

@@ -1,6 +1,9 @@
 package log
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	//LevelDebug debug level logging, all messages outputted
@@ -71,6 +74,7 @@ func (o Options) Verify() error {
 		o.Level != LevelInfo &&
 		o.Level != LevelWarn &&
 		o.Level != LevelError {
+		fmt.Printf("invalid logging level '%s'\n", o.Level)
 		return ErrOptionLevel
 	}
 

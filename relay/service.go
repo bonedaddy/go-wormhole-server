@@ -195,6 +195,7 @@ func (s *Service) CleanApps(since int64) error {
 
 	//No longer in use, dump the memory
 	for _, appID := range deadApps {
+		log.Infof("removed dead application from memory %s", appID)
 		delete(s.Apps, appID)
 	}
 

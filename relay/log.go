@@ -13,9 +13,13 @@ func prepLog(c *Client) *logrus.Entry {
 	if config.Opts.Logging.BlurTimes > 1 {
 		l = l.WithTime(time.Now().Truncate(time.Duration(config.Opts.Logging.BlurTimes) * time.Second))
 	}
-	if config.Opts.Logging.ShowAddress {
-		l = l.WithField("remote-addr", c.conn.RemoteAddr())
+
+	if c != nil && c.conn != nil {
+		if config.Opts.Logging.ShowAddress {
+			l = l.WithField("remote-addr", c.conn.RemoteAddr())
+		}
 	}
+
 	return l
 }
 

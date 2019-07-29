@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chris-pikul/go-wormhole/errs"
 	"github.com/chris-pikul/go-wormhole-server/db"
 	"github.com/chris-pikul/go-wormhole-server/log"
+	"github.com/chris-pikul/go-wormhole/errs"
 )
 
 //Application holds the data for interacting with
@@ -477,6 +477,8 @@ func (a *Application) Cleanup(since int64) error {
 			log.Err("deleting nameplates for application Cleanup", err)
 			return err
 		}
+
+		log.Infof("cleaned nameplate %d", np)
 	}
 
 	//Clear out old mailboxes
@@ -495,6 +497,8 @@ func (a *Application) Cleanup(since int64) error {
 			log.Err("deleting mailbox for application Cleanup", err)
 			return err
 		}
+
+		log.Infof("cleaned mailbox %s", mbid)
 	}
 
 	return nil
